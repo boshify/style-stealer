@@ -151,12 +151,21 @@ export interface BoxShadow {
 // ============================================================================
 
 /**
+ * Logo variant type
+ */
+export interface LogoVariant {
+  type: 'regular' | 'dark' | 'light' | 'icon' | 'favicon' | 'mobile' | 'other';
+  url: string;
+  description?: string; // e.g., "Dark logo for light backgrounds"
+}
+
+/**
  * Image and icon patterns
  */
 export interface ImageryTokens {
   imageUrls: string[];
   iconPattern?: 'svg' | 'font' | 'raster' | 'mixed';
-  logoUrl?: string;
+  logos: LogoVariant[]; // Multiple logo variants
   heroImageUrl?: string;
   backgroundImages: string[];
   analysis?: ImageAnalysis; // AI-powered image analysis

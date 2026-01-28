@@ -78,7 +78,8 @@ Your task is to analyze design tokens extracted from a website and generate a co
 3. **Typography** - Font families, sizes, weights, and hierarchy
 4. **Layout & Spacing** - Grid system, breakpoints, spacing scale
 5. **Visual Style** - Border radius, shadows, and other visual patterns
-6. **Imagery** - Notes about images, icons, and visual motifs
+6. **Logos** - Direct links to logo variants (regular, dark, light, icon, etc.) - DO NOT analyze, just list the URLs
+7. **Imagery** - Notes about images, icons, and visual motifs
 
 ## Style Guidelines:
 
@@ -233,14 +234,22 @@ function formatTokensForPrompt(tokens: DesignTokens): string {
   }
   prompt += `\n`;
 
+  // Logos
+  if (imagery.logos && imagery.logos.length > 0) {
+    prompt += `### Logos\n\n`;
+    prompt += `Found ${imagery.logos.length} logo variant(s):\n\n`;
+    imagery.logos.forEach((logo, index) => {
+      const desc = logo.description ? ` - ${logo.description}` : '';
+      prompt += `${index + 1}. **${capitalizeFirst(logo.type)} Logo**${desc}\n`;
+      prompt += `   - URL: ${logo.url}\n`;
+    });
+    prompt += `\n**IMPORTANT**: Include a "Logos" section in your output with these direct links. Do NOT analyze the logos - just list them with their URLs for easy access.\n\n`;
+  }
+
   // Imagery
   prompt += `### Imagery & Icons\n\n`;
   prompt += `- **Total Images**: ${imagery.imageUrls.length}\n`;
   prompt += `- **Icon Pattern**: ${imagery.iconPattern || 'Not detected'}\n`;
-
-  if (imagery.logoUrl) {
-    prompt += `- **Logo**: Detected\n`;
-  }
 
   if (imagery.heroImageUrl) {
     prompt += `- **Hero Image**: Detected\n`;
@@ -563,6 +572,13 @@ Now create a single, comprehensive style guide that combines all unique insights
 
 // Note: JSON escaping is handled automatically by Next.js NextResponse.json()
 // No manual escaping needed for API responses
+
+/**
+ * Capitalize first letter of a string
+ */
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 /**
  * Select representative images for analysis

@@ -15,6 +15,7 @@ import type {
   VisualTokens,
   BoxShadow,
   ImageryTokens,
+  LogoVariant,
   ParserOptions,
   ScrapedData,
 } from './types';
@@ -28,6 +29,7 @@ import {
   unique,
   sortByFrequency,
   getDomain,
+  toAbsoluteUrl,
 } from './utils';
 
 const DEFAULT_OPTIONS: Required<ParserOptions> = {
@@ -61,7 +63,7 @@ export function parseStyles(
     layout: getEmptyLayout(),
     spacing: getEmptySpacing(),
     visual: getEmptyVisual(),
-    imagery: { imageUrls: [], iconPattern: undefined, backgroundImages: [] },
+    imagery: { imageUrls: [], iconPattern: undefined, logos: [], backgroundImages: [] },
     metadata: {
       url,
       title,
@@ -608,10 +610,8 @@ function extractImagery(html: string, baseUrl: string): ImageryTokens {
   const iconPattern: ImageryTokens['iconPattern'] =
     svgCount / totalImages > 0.7 ? 'svg' : svgCount > 0 ? 'mixed' : 'raster';
 
-  // Try to find logo
-  const logoPattern = /<img[^>]+(?:class|id)=["'][^"']*logo[^"']*["'][^>]+src=["']([^"']+)["']/i;
-  const logoMatch = html.match(logoPattern);
-  const logoUrl = logoMatch ? logoMatch[1] : undefined;
+  // Extract multiple logo variants
+  const logos = extractLogos(html, baseUrl);
 
   // Try to find hero image
   const heroPattern = /<img[^>]+(?:class|id)=["'][^"']*(?:hero|banner|featured)[^"']*["'][^>]+src=["']([^"']+)["']/i;
@@ -621,10 +621,124 @@ function extractImagery(html: string, baseUrl: string): ImageryTokens {
   return {
     imageUrls: imageUrls.slice(0, 10),
     iconPattern,
-    logoUrl,
+    logos,
     heroImageUrl,
     backgroundImages: [],
   };
+}
+
+/**
+ * Extract all logo variants from HTML
+ */
+function extractLogos(html: string, baseUrl: string): LogoVariant[] {
+  const logos: LogoVariant[] = [];
+  const seen = new Set<string>(); // Track URLs to avoid duplicates
+
+  // Helper to add logo if not duplicate
+  const addLogo = (type: LogoVariant['type'], url: string, description?: string) => {
+    const absoluteUrl = toAbsoluteUrl(url, baseUrl);
+    if (!seen.has(absoluteUrl)) {
+      seen.add(absoluteUrl);
+      logos.push({ type, url: absoluteUrl, description });
+    }
+  };
+
+  // 1. Find favicons (link tags)
+  const faviconPatterns = [
+    /<link[^>]+rel=["'](?:icon|shortcut icon|apple-touch-icon)["'][^>]+href=["']([^"']+)["']/gi,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["'](?:icon|shortcut icon|apple-touch-icon)["']/gi,
+  ];
+
+  for (const pattern of faviconPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('favicon', match[1], 'Favicon/Icon');
+    }
+  }
+
+  // 2. Find dark logos (for light backgrounds)
+  const darkLogoPatterns = [
+    /<img[^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]dark|dark[-_]logo|logo-black)(?:[^"']*)?["'][^>]+src=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["'][^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]dark|dark[-_]logo|logo-black)(?:[^"']*)?["']/gi,
+  ];
+
+  for (const pattern of darkLogoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('dark', match[1], 'Dark logo (for light backgrounds)');
+    }
+  }
+
+  // 3. Find light logos (for dark backgrounds)
+  const lightLogoPatterns = [
+    /<img[^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]light|light[-_]logo|logo-white)(?:[^"']*)?["'][^>]+src=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["'][^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]light|light[-_]logo|logo-white)(?:[^"']*)?["']/gi,
+  ];
+
+  for (const pattern of lightLogoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('light', match[1], 'Light logo (for dark backgrounds)');
+    }
+  }
+
+  // 4. Find logo icons (small/compact versions)
+  const iconLogoPatterns = [
+    /<img[^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]icon|icon[-_]logo|brand[-_]icon|logo[-_]small)(?:[^"']*)?["'][^>]+src=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["'][^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]icon|icon[-_]logo|brand[-_]icon|logo[-_]small)(?:[^"']*)?["']/gi,
+  ];
+
+  for (const pattern of iconLogoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('icon', match[1], 'Logo icon/compact version');
+    }
+  }
+
+  // 5. Find mobile logos
+  const mobileLogoPatterns = [
+    /<img[^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]mobile|mobile[-_]logo)(?:[^"']*)?["'][^>]+src=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["'][^>]+(?:class|id|alt)=["'][^"']*(?:logo[-_]mobile|mobile[-_]logo)(?:[^"']*)?["']/gi,
+  ];
+
+  for (const pattern of mobileLogoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('mobile', match[1], 'Mobile logo');
+    }
+  }
+
+  // 6. Find regular logos (catch-all for any logo not matched above)
+  const regularLogoPatterns = [
+    /<img[^>]+(?:class|id|alt)=["'][^"']*logo(?:[^"']*)?["'][^>]+src=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["'][^>]+(?:class|id|alt)=["'][^"']*logo(?:[^"']*)?["']/gi,
+  ];
+
+  for (const pattern of regularLogoPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addLogo('regular', match[1], 'Regular logo');
+    }
+  }
+
+  // 7. Look for SVG logos directly in HTML (inline SVGs)
+  const inlineSvgPattern = /<svg[^>]*(?:class|id)=["'][^"']*logo[^"']*["'][^>]*>([\s\S]*?)<\/svg>/gi;
+  const inlineSvgMatches = html.matchAll(inlineSvgPattern);
+  let inlineSvgCount = 0;
+  for (const match of inlineSvgMatches) {
+    inlineSvgCount++;
+    // Note: We can't extract inline SVG URLs directly, but we can note their presence
+    if (inlineSvgCount === 1) {
+      logos.push({
+        type: 'other',
+        url: 'inline-svg',
+        description: 'Inline SVG logo (embedded in HTML, cannot extract URL)'
+      });
+    }
+  }
+
+  console.log('[Parser:Logos] Found', logos.length, 'logo variants');
+  return logos;
 }
 
 // ============================================================================
