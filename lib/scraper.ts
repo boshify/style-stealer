@@ -11,13 +11,13 @@ let playwrightChecked = false;
 let playwrightAvailable = false;
 let chromium: any = null;
 
-function ensurePlaywright() {
+async function ensurePlaywright() {
   if (playwrightChecked) return;
   playwrightChecked = true;
 
   try {
-    // Dynamic import to handle optional Playwright
-    const playwright = require('playwright');
+    // Use dynamic import() to prevent webpack bundling at build time
+    const playwright = await import('playwright');
     chromium = playwright.chromium;
     playwrightAvailable = true;
     console.log('[Scraper] Playwright is available');
@@ -52,7 +52,7 @@ export async function scrapeWebsite(
   // Force Playwright if requested
   if (opts.forcePlaywright) {
     console.log('[Scraper] Using Playwright (forced)');
-    ensurePlaywright(); // Lazy-load Playwright
+    await ensurePlaywright(); // Lazy-load Playwright
     return scrapeWithPlaywright(normalizedUrl, opts);
   }
 
@@ -69,7 +69,7 @@ export async function scrapeWebsite(
     console.log('[Scraper] Insufficient CSS from Cheerio, attempting Playwright fallback');
 
     // Only try Playwright if it's available
-    ensurePlaywright(); // Lazy-load Playwright
+    await ensurePlaywright(); // Lazy-load Playwright
     if (playwrightAvailable) {
       return scrapeWithPlaywright(normalizedUrl, opts);
     } else {
@@ -80,7 +80,7 @@ export async function scrapeWebsite(
     console.log('[Scraper] Cheerio failed:', error);
 
     // Try Playwright if available
-    ensurePlaywright(); // Lazy-load Playwright
+    await ensurePlaywright(); // Lazy-load Playwright
     if (playwrightAvailable) {
       console.log('[Scraper] Falling back to Playwright');
       return scrapeWithPlaywright(normalizedUrl, opts);
