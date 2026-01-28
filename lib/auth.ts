@@ -63,14 +63,55 @@ export function verifyApiKey(providedKey: string): boolean {
 }
 
 /**
+ * Check if request is from same origin (internal web app)
+ */
+function isInternalRequest(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  const host = request.headers.get('host');
+
+  // If there's an origin header, check if it matches the host
+  if (origin && host) {
+    const originHost = new URL(origin).host;
+    if (originHost === host) {
+      return true;
+    }
+  }
+
+  // If there's a referer, check if it's from the same host
+  if (referer && host) {
+    try {
+      const refererHost = new URL(referer).host;
+      if (refererHost === host) {
+        return true;
+      }
+    } catch {
+      // Invalid referer URL, ignore
+    }
+  }
+
+  return false;
+}
+
+/**
  * Complete authentication check
  * Returns true if authenticated, false otherwise
+ *
+ * Allows requests from same origin (web app) without API key
+ * Requires API key for external requests
  */
 export function authenticate(request: NextRequest): boolean {
+  // Allow internal requests from the web app frontend
+  if (isInternalRequest(request)) {
+    console.log('[Auth] ✓ Internal request from web app');
+    return true;
+  }
+
+  // For external requests, require API key
   const apiKey = extractApiKey(request);
 
   if (!apiKey) {
-    console.log('[Auth] No API key provided');
+    console.log('[Auth] No API key provided (external request)');
     return false;
   }
 
@@ -84,6 +125,6 @@ export function authenticate(request: NextRequest): boolean {
     return false;
   }
 
-  console.log('[Auth] ✓ Authentication successful');
+  console.log('[Auth] ✓ Authentication successful (API key)');
   return true;
 }
