@@ -1,7 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(curl -X POST https://style-stealer-production.up.railway.app/api/generate -H \"Content-Type: application/json\" -H \"X-API-Key: b4d482b3-ecea-4bdd-b39d-1903070db874\" -d \"{\"\"url\"\": \"\"https://blog.gtowizard.com/\"\", \"\"async\"\": true}\" -w \"\\\\n\\\\nStatus: %{http_code}\\\\nTime: %{time_total}s\\\\n\")"
-    ]
+    "allow": []
   }
 }
