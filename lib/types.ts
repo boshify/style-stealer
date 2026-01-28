@@ -175,6 +175,11 @@ export interface ImageryTokens {
  * AI analysis of website imagery with vivid, detailed descriptions
  */
 export interface ImageAnalysis {
+  logos?: Array<{             // Logos detected by AI
+    url: string;              // Image URL
+    type: 'regular' | 'dark' | 'light' | 'icon' | 'favicon' | 'mobile' | 'other';
+    description?: string;     // e.g., "Dark logo for light backgrounds"
+  }>;
   imageTypes?: Array<{        // Detailed breakdown by image type
     type: string;             // e.g., "Featured Images", "Charts", "Screenshots"
     count: number;
@@ -217,6 +222,8 @@ export interface Metadata {
 export interface GenerateRequest {
   url: string;
   webhook_url?: string;  // Optional webhook URL to post results to
+  projectId?: string;    // Optional project ID to track requests
+  async?: boolean;       // Optional flag to enable async processing
 }
 
 /**

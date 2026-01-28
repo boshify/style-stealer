@@ -32,6 +32,10 @@ const RequestSchema = z.object({
     .max(2048, 'Webhook URL too long (max 2048 characters)')
     .url('Invalid webhook URL')
     .optional(),
+  projectId: z
+    .string()
+    .max(256, 'Project ID too long (max 256 characters)')
+    .optional(), // Optional project ID to track requests
   async: z.boolean().optional(), // Enable async processing with polling
 });
 
@@ -108,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url, webhook_url, async: isAsync } = validation.data;
+    const { url, webhook_url, projectId, async: isAsync } = validation.data;
 
     // Validate webhook URL if provided
     if (webhook_url && !isValidWebhookUrl(webhook_url)) {
@@ -172,6 +176,7 @@ export async function POST(request: NextRequest) {
           markdown: getDummyStyleGuide(),
           generationTime: 42,
           pagesAnalyzed: 3,
+          projectId,
           timestamp: new Date().toISOString(),
         });
       }
@@ -197,7 +202,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Start background processing
-      processAsync(requestId, url, webhook_url, startTime).catch((error: unknown) => {
+      processAsync(requestId, url, webhook_url, projectId, startTime).catch((error: unknown) => {
         console.error('[API:Async] Background processing error:', error);
         storeResult({
           requestId,
@@ -274,6 +279,7 @@ export async function POST(request: NextRequest) {
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
+        projectId,
         timestamp: new Date().toISOString(),
       });
 
@@ -540,6 +546,7 @@ async function processAsync(
   requestId: string,
   url: string,
   webhook_url: string | undefined,
+  projectId: string | undefined,
   startTime: number
 ): Promise<void> {
   try {
@@ -594,6 +601,7 @@ async function processAsync(
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
+        projectId,
         timestamp: new Date().toISOString(),
       });
     }
@@ -607,6 +615,7 @@ async function processAsync(
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
+        projectId,
         timestamp: new Date().toISOString(),
       });
     }

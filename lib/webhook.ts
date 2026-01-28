@@ -8,6 +8,7 @@ export interface WebhookPayload {
   markdown: string;
   generationTime: number;
   pagesAnalyzed?: number;
+  projectId?: string;
   timestamp: string;
 }
 

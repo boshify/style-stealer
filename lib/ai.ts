@@ -234,9 +234,19 @@ function formatTokensForPrompt(tokens: DesignTokens): string {
   }
   prompt += `\n`;
 
-  // Logos
-  if (imagery.logos && imagery.logos.length > 0) {
-    prompt += `### Logos\n\n`;
+  // Logos (from AI image analysis)
+  if (imagery.analysis?.logos && imagery.analysis.logos.length > 0) {
+    prompt += `### Logos (Detected by AI)\n\n`;
+    prompt += `Found ${imagery.analysis.logos.length} logo variant(s):\n\n`;
+    imagery.analysis.logos.forEach((logo, index) => {
+      const desc = logo.description ? ` - ${logo.description}` : '';
+      prompt += `${index + 1}. **${capitalizeFirst(logo.type)} Logo**${desc}\n`;
+      prompt += `   - URL: ${logo.url}\n`;
+    });
+    prompt += `\n**IMPORTANT**: Include a "Logos" section in your output with these direct links. Do NOT analyze the logos - just list them with their URLs for easy access.\n\n`;
+  } else if (imagery.logos && imagery.logos.length > 0) {
+    // Fallback to pattern-based detection if AI didn't find any
+    prompt += `### Logos (Pattern-based detection)\n\n`;
     prompt += `Found ${imagery.logos.length} logo variant(s):\n\n`;
     imagery.logos.forEach((logo, index) => {
       const desc = logo.description ? ` - ${logo.description}` : '';
@@ -302,8 +312,8 @@ export async function analyzeImages(
   console.log('[AI:Images] Selected', selectedImages.length, 'images for analysis');
 
   try {
-    // Fetch images and convert to base64
-    const imageData = await Promise.all(
+    // Fetch images and convert to base64, track URLs
+    const imageDataWithUrls = await Promise.all(
       selectedImages.map(async (url) => {
         try {
           const absoluteUrl = toAbsoluteUrl(url, baseUrl);
@@ -331,11 +341,14 @@ export async function analyzeImages(
           else if (contentType?.includes('webp')) mediaType = 'image/webp';
 
           return {
-            type: 'image' as const,
-            source: {
-              type: 'base64' as const,
-              media_type: mediaType,
-              data: base64,
+            url: absoluteUrl,
+            data: {
+              type: 'image' as const,
+              source: {
+                type: 'base64' as const,
+                media_type: mediaType,
+                data: base64,
+              },
             },
           };
         } catch (error) {
@@ -346,7 +359,7 @@ export async function analyzeImages(
     );
 
     // Filter out failed fetches
-    const validImages = imageData.filter((img) => img !== null);
+    const validImages = imageDataWithUrls.filter((img) => img !== null);
 
     if (validImages.length === 0) {
       console.log('[AI:Images] No images could be fetched');
@@ -354,6 +367,16 @@ export async function analyzeImages(
     }
 
     console.log('[AI:Images] Successfully fetched', validImages.length, 'images');
+
+    // Build message content array with image labels and data
+    const messageContent: any[] = [];
+    validImages.forEach((img, index) => {
+      messageContent.push({
+        type: 'text',
+        text: `Image ${index + 1} URL: ${img.url}`,
+      });
+      messageContent.push(img.data);
+    });
 
     // Analyze with Claude vision
     let message;
@@ -366,22 +389,33 @@ export async function analyzeImages(
           {
             role: 'user',
             content: [
-              ...validImages,
+              ...messageContent,
               {
                 type: 'text',
                 text: `Analyze these images from a website and provide an extremely detailed, vivid analysis of the imagery. Your descriptions should be so detailed that an AI image generator could recreate similar images.
 
+**CRITICAL**: When identifying logos, use the exact "Image X URL" labels above to return the correct URL in your JSON response.
+
 For EACH image, identify its type and provide vivid descriptions:
 
 **Image Types to Identify:**
+- **Logos** (company/brand logos - ANY SIZE, location matters more than size)
+- **Logo Variants** (dark logo, light logo, icon-only logo, mobile logo, favicon)
 - Featured Images / Hero Images (large, prominent, attention-grabbing)
 - Photos (photography of people, products, places)
 - Illustrations (drawn, vector, artistic)
 - Screenshots (interface captures, app views)
 - Charts / Graphs (data visualizations)
 - Tables (structured data displays)
-- Icons (small graphical elements)
+- Icons (small graphical elements, NOT logos)
 - Diagrams (technical drawings, flowcharts)
+
+**CRITICAL FOR LOGOS:**
+- Logos are typically in the header, navigation, or footer
+- Look for images at typical logo positions (top-left, center-top, etc.)
+- Logos can be ANY size - small favicons or large hero logos
+- Check file names/URLs for hints: "logo", "brand", "icon", "favicon"
+- A logo is THE brand identifier, not just any icon
 
 For EACH identified image type, describe in vivid detail:
 - Composition (layout, framing, positioning, rule of thirds usage)
@@ -396,6 +430,10 @@ For EACH identified image type, describe in vivid detail:
 - Aspect ratio and dimensions (landscape, portrait, square, approximate size)
 
 Return a JSON object with these fields:
+- logos: array of logo objects, each with {url: string, type: "regular" | "dark" | "light" | "icon" | "favicon" | "mobile" | "other", description?: string}
+  * CRITICAL: Include the ACTUAL image URL from the images you analyzed
+  * type should reflect the logo variant (regular, dark, light, icon, etc.)
+  * description should explain the variant (e.g., "Dark logo for light backgrounds")
 - imageTypes: array of objects, each with {type: string, count: number, description: string} where description is EXTREMELY detailed
 - style: overall visual style across all images
 - tone: emotional tone
@@ -404,6 +442,12 @@ Return a JSON object with these fields:
 - quality: perceived quality and production value
 - consistency: how consistent the imagery is across all images
 - technicalDetails: object with {compositionStyle, lightingStyle, renderingStyle}
+
+**IMPORTANT FOR LOGOS:**
+- You MUST return the actual image URLs for logos (not just note their presence)
+- Match each logo URL from the provided images
+- Identify the logo type based on appearance and filename
+- If no logos found, return empty array for logos field
 
 Make descriptions vivid and specific - suitable for AI image generation prompts. Include details about shadows, highlights, textures, depth, perspective, and any unique visual treatments.
 
@@ -424,22 +468,33 @@ Only return the JSON object, no other text.`,
             {
               role: 'user',
               content: [
-                ...validImages,
+                ...messageContent,
                 {
                   type: 'text',
                   text: `Analyze these images from a website and provide an extremely detailed, vivid analysis of the imagery. Your descriptions should be so detailed that an AI image generator could recreate similar images.
 
+**CRITICAL**: When identifying logos, use the exact "Image X URL" labels above to return the correct URL in your JSON response.
+
 For EACH image, identify its type and provide vivid descriptions:
 
 **Image Types to Identify:**
+- **Logos** (company/brand logos - ANY SIZE, location matters more than size)
+- **Logo Variants** (dark logo, light logo, icon-only logo, mobile logo, favicon)
 - Featured Images / Hero Images (large, prominent, attention-grabbing)
 - Photos (photography of people, products, places)
 - Illustrations (drawn, vector, artistic)
 - Screenshots (interface captures, app views)
 - Charts / Graphs (data visualizations)
 - Tables (structured data displays)
-- Icons (small graphical elements)
+- Icons (small graphical elements, NOT logos)
 - Diagrams (technical drawings, flowcharts)
+
+**CRITICAL FOR LOGOS:**
+- Logos are typically in the header, navigation, or footer
+- Look for images at typical logo positions (top-left, center-top, etc.)
+- Logos can be ANY size - small favicons or large hero logos
+- Check file names/URLs for hints: "logo", "brand", "icon", "favicon"
+- A logo is THE brand identifier, not just any icon
 
 For EACH identified image type, describe in vivid detail:
 - Composition (layout, framing, positioning, rule of thirds usage)
@@ -454,6 +509,10 @@ For EACH identified image type, describe in vivid detail:
 - Aspect ratio and dimensions (landscape, portrait, square, approximate size)
 
 Return a JSON object with these fields:
+- logos: array of logo objects, each with {url: string, type: "regular" | "dark" | "light" | "icon" | "favicon" | "mobile" | "other", description?: string}
+  * CRITICAL: Include the ACTUAL image URL from the images you analyzed
+  * type should reflect the logo variant (regular, dark, light, icon, etc.)
+  * description should explain the variant (e.g., "Dark logo for light backgrounds")
 - imageTypes: array of objects, each with {type: string, count: number, description: string} where description is EXTREMELY detailed
 - style: overall visual style across all images
 - tone: emotional tone
@@ -462,6 +521,12 @@ Return a JSON object with these fields:
 - quality: perceived quality and production value
 - consistency: how consistent the imagery is across all images
 - technicalDetails: object with {compositionStyle, lightingStyle, renderingStyle}
+
+**IMPORTANT FOR LOGOS:**
+- You MUST return the actual image URLs for logos (not just note their presence)
+- Match each logo URL from the provided images
+- Identify the logo type based on appearance and filename
+- If no logos found, return empty array for logos field
 
 Make descriptions vivid and specific - suitable for AI image generation prompts. Include details about shadows, highlights, textures, depth, perspective, and any unique visual treatments.
 
@@ -582,10 +647,10 @@ function capitalizeFirst(str: string): string {
 
 /**
  * Select representative images for analysis
- * Prioritizes: hero images, large images, diverse URLs
+ * Prioritizes: logos, hero images, large images, diverse URLs
  */
 function selectRepresentativeImages(urls: string[], maxCount: number): string[] {
-  // Filter out common icons, tiny images, tracking pixels
+  // Filter out ONLY tracking pixels and analytics - keep logos and icons!
   const filtered = urls.filter((url) => {
     const lower = url.toLowerCase();
 
@@ -594,30 +659,29 @@ function selectRepresentativeImages(urls: string[], maxCount: number): string[] 
       return false;
     }
 
-    // Skip very small images (likely icons)
-    if (lower.match(/\d+x\d+/) && parseInt(lower.match(/(\d+)x/)?.[1] || '0') < 100) {
+    // Skip data URIs
+    if (lower.startsWith('data:')) {
       return false;
     }
 
-    // Skip common icon/logo patterns
-    if (lower.includes('icon') || lower.includes('logo-')) {
-      return false;
-    }
-
-    // Only include common image formats
-    if (!lower.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/)) {
+    // Only include common image formats (including SVG for logos)
+    if (!lower.match(/\.(jpg|jpeg|png|webp|gif|svg)($|\?)/)) {
       return false;
     }
 
     return true;
   });
 
-  // Prioritize hero/featured/banner images
+  // Prioritize logos first, then hero/featured/banner images
   const prioritized = filtered.sort((a, b) => {
     const aLower = a.toLowerCase();
     const bLower = b.toLowerCase();
 
     const aScore =
+      (aLower.includes('logo') ? 15 : 0) +
+      (aLower.includes('brand') ? 15 : 0) +
+      (aLower.includes('favicon') ? 12 : 0) +
+      (aLower.includes('icon') && (aLower.includes('logo') || aLower.includes('brand')) ? 12 : 0) +
       (aLower.includes('hero') ? 10 : 0) +
       (aLower.includes('featured') ? 8 : 0) +
       (aLower.includes('banner') ? 7 : 0) +
@@ -625,6 +689,10 @@ function selectRepresentativeImages(urls: string[], maxCount: number): string[] 
       (aLower.match(/\d{3,4}x\d{3,4}/) ? 3 : 0); // Prefer larger dimensions
 
     const bScore =
+      (bLower.includes('logo') ? 15 : 0) +
+      (bLower.includes('brand') ? 15 : 0) +
+      (bLower.includes('favicon') ? 12 : 0) +
+      (bLower.includes('icon') && (bLower.includes('logo') || bLower.includes('brand')) ? 12 : 0) +
       (bLower.includes('hero') ? 10 : 0) +
       (bLower.includes('featured') ? 8 : 0) +
       (bLower.includes('banner') ? 7 : 0) +

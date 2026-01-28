@@ -5,6 +5,7 @@ import type { GenerateResponse } from '@/lib/types';
 
 export default function Home() {
   const [url, setUrl] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<string | null>(null);
@@ -33,7 +34,11 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url, async: true }),
+        body: JSON.stringify({
+          url,
+          async: true,
+          ...(projectId.trim() && { projectId: projectId.trim() })
+        }),
       });
 
       const data: GenerateResponse = await response.json();
@@ -151,6 +156,24 @@ export default function Home() {
               />
               <p className="mt-2 text-sm text-gray-500">
                 Enter any public website URL to analyze its design system
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="projectId" className="block text-sm font-medium text-gray-700 mb-2">
+                Project ID (Optional)
+              </label>
+              <input
+                type="text"
+                id="projectId"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                placeholder="my-project-123"
+                className="input"
+                disabled={loading}
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Optional identifier to track this request in webhooks
               </p>
             </div>
 
