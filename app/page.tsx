@@ -25,15 +25,15 @@ export default function Home() {
     setGenerationTime(null);
 
     try {
-      // Progress messages
-      setProgress('Fetching website...');
+      // Submit async request
+      setProgress('Submitting request...');
 
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, async: true }),
       });
 
       const data: GenerateResponse = await response.json();
@@ -42,18 +42,54 @@ export default function Home() {
         throw new Error(data.error || 'Failed to generate style guide');
       }
 
-      setProgress('Analyzing styles...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // If synchronous (test URLs), show result immediately
+      if (data.markdown) {
+        setResult(data.markdown);
+        setGenerationTime(data.generationTime || null);
+        setProgress('');
+        return;
+      }
 
-      setProgress('Analyzing images...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // If async, poll for results
+      const requestId = (data as any).requestId;
+      if (!requestId) {
+        throw new Error('No request ID received');
+      }
 
-      setProgress('Generating guide...');
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      setProgress('Analyzing website (this may take 2-3 minutes)...');
 
-      setResult(data.markdown || '');
-      setGenerationTime(data.generationTime || null);
-      setProgress('');
+      // Poll for results every 2 seconds
+      let attempts = 0;
+      const maxAttempts = 120; // 4 minutes max
+
+      while (attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        attempts++;
+
+        const resultResponse = await fetch(`/api/results/${requestId}`);
+        const resultData = await resultResponse.json();
+
+        if (!resultResponse.ok) {
+          throw new Error('Failed to check result status');
+        }
+
+        if (resultData.status === 'completed') {
+          setResult(resultData.markdown || '');
+          setGenerationTime(resultData.generationTime || null);
+          setProgress('');
+          return;
+        }
+
+        if (resultData.status === 'error') {
+          throw new Error(resultData.error || 'Processing failed');
+        }
+
+        // Update progress message
+        const elapsed = attempts * 2;
+        setProgress(`Analyzing website... (${elapsed}s elapsed)`);
+      }
+
+      throw new Error('Request timed out after 4 minutes');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       setProgress('');
