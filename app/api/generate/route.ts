@@ -18,6 +18,7 @@ import { authenticate, extractApiKey } from '@/lib/auth';
 import { rateLimitByApiKey, rateLimitGlobal } from '@/lib/rate-limiter';
 import { postToWebhook, isValidWebhookUrl } from '@/lib/webhook';
 import type { GenerateRequest, GenerateResponse } from '@/lib/types';
+import { storeResult, generateRequestId } from '@/lib/storage';
 
 // Request validation schema with strict length limits
 const RequestSchema = z.object({
@@ -31,6 +32,7 @@ const RequestSchema = z.object({
     .max(2048, 'Webhook URL too long (max 2048 characters)')
     .url('Invalid webhook URL')
     .optional(),
+  async: z.boolean().optional(), // Enable async processing with polling
 });
 
 /**
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url, webhook_url } = validation.data;
+    const { url, webhook_url, async: isAsync } = validation.data;
 
     // Validate webhook URL if provided
     if (webhook_url && !isValidWebhookUrl(webhook_url)) {
@@ -175,6 +177,43 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json(dummyResponse, {
+        headers: {
+          'X-RateLimit-Limit': '100',
+          'X-RateLimit-Remaining': keyLimit.remaining.toString(),
+          'X-RateLimit-Reset': keyLimit.resetAt.toString(),
+        }
+      });
+    }
+
+    // Check if async processing is requested
+    if (isAsync) {
+      const requestId = generateRequestId();
+
+      // Store initial status
+      storeResult({
+        requestId,
+        status: 'processing',
+        createdAt: Date.now(),
+      });
+
+      // Start background processing
+      processAsync(requestId, url, webhook_url, startTime).catch((error: unknown) => {
+        console.error('[API:Async] Background processing error:', error);
+        storeResult({
+          requestId,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          createdAt: Date.now(),
+        });
+      });
+
+      // Return immediately with request ID
+      return NextResponse.json({
+        success: true,
+        requestId,
+        status: 'processing',
+        message: 'Request accepted for processing. Poll /api/results/' + requestId + ' for status.',
+      }, {
         headers: {
           'X-RateLimit-Limit': '100',
           'X-RateLimit-Remaining': keyLimit.remaining.toString(),
@@ -492,4 +531,92 @@ This is a dummy style guide generated instantly for testing purposes. Based on a
 ---
 
 *This is a test style guide generated for https://website.com/test*`;
+}
+
+/**
+ * Process request asynchronously in background
+ */
+async function processAsync(
+  requestId: string,
+  url: string,
+  webhook_url: string | undefined,
+  startTime: number
+): Promise<void> {
+  try {
+    console.log(`\n[API:Async:${requestId}] Starting background processing for: ${url}`);
+
+    // Step 1: Scrape the primary page
+    const primaryScrapedData = await scrapeWebsite(url, { timeout: 30000 });
+
+    // Step 2: Discover additional pages
+    const additionalPages = await discoverPages(url, primaryScrapedData.html);
+    const allPages = [url, ...additionalPages];
+
+    // Step 3: Analyze all pages concurrently
+    const pageReports = await Promise.all(
+      allPages.map((pageUrl, index) =>
+        analyzeSinglePage(pageUrl, index + 1, allPages.length)
+      )
+    );
+
+    const successfulReports = pageReports.filter((report) => report !== null) as Array<{
+      url: string;
+      markdown: string;
+    }>;
+
+    if (successfulReports.length === 0) {
+      throw new Error('Failed to analyze any pages');
+    }
+
+    // Step 4: Combine reports
+    const combinedMarkdown = await combineReports(successfulReports);
+    const generationTime = Date.now() - startTime;
+
+    console.log(`[API:Async:${requestId}] Complete! Generated in ${(generationTime / 1000).toFixed(2)}s`);
+
+    // Update result storage
+    storeResult({
+      requestId,
+      status: 'completed',
+      markdown: combinedMarkdown,
+      generationTime,
+      pagesAnalyzed: successfulReports.length,
+      createdAt: Date.now(),
+    });
+
+    // Post to webhook if provided (n8n)
+    const n8nWebhook = process.env.N8N_WEBHOOK_URL;
+    if (n8nWebhook) {
+      console.log(`[API:Async:${requestId}] Posting to n8n webhook...`);
+      await postToWebhook(n8nWebhook, {
+        requestId,
+        url,
+        markdown: combinedMarkdown,
+        generationTime,
+        pagesAnalyzed: successfulReports.length,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Post to user-provided webhook if specified
+    if (webhook_url) {
+      console.log(`[API:Async:${requestId}] Posting to user webhook...`);
+      await postToWebhook(webhook_url, {
+        requestId,
+        url,
+        markdown: combinedMarkdown,
+        generationTime,
+        pagesAnalyzed: successfulReports.length,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error(`[API:Async:${requestId}] Error:`, error);
+    storeResult({
+      requestId,
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      createdAt: Date.now(),
+    });
+  }
 }

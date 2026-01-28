@@ -1,0 +1,270 @@
+
+> style-stealer@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.10
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.211:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.1s
+ ○ Compiling /api/generate ...
+ ✓ Compiled /api/generate in 2.2s (648 modules)
+[Auth] No API key provided (external request)
+ POST /api/generate 401 in 2533ms
+[Auth] ✓ Internal request from web app
+
+[API] ======= Starting multi-page analysis for: https://blog.gtowizard.com/ =======
+[API] Step 1: Scraping primary page for page discovery...
+[Scraper] Fetching: https://blog.gtowizard.com/
+[Scraper] Success with Cheerio (950658 chars of CSS)
+[API] ✓ Primary page scraped
+[API] Step 2: Discovering additional pages...
+[Discovery] Finding additional pages to analyze...
+[Discovery] Selected pages: [
+  'https://blog.gtowizard.com/video/the-truth-about-mixed-strategies-in-poker/',
+  'https://blog.gtowizard.com/articles/'
+]
+[API] ✓ Found 2 additional pages: [
+  'https://blog.gtowizard.com/video/the-truth-about-mixed-strategies-in-poker/',
+  'https://blog.gtowizard.com/articles/'
+]
+[API] Step 3: Analyzing 3 pages concurrently...
+
+[Page 1/3] Starting analysis: https://blog.gtowizard.com/
+[Page 1/3] Scraping...
+[Scraper] Fetching: https://blog.gtowizard.com/
+
+[Page 2/3] Starting analysis: https://blog.gtowizard.com/video/the-truth-about-mixed-strategies-in-poker/
+[Page 2/3] Scraping...
+[Scraper] Fetching: https://blog.gtowizard.com/video/the-truth-about-mixed-strategies-in-poker/
+
+[Page 3/3] Starting analysis: https://blog.gtowizard.com/articles/
+[Page 3/3] Scraping...
+[Scraper] Fetching: https://blog.gtowizard.com/articles/
+[Scraper] Success with Cheerio (950658 chars of CSS)
+[Page 1/3] ✓ Scraped (method: cheerio)
+[Page 1/3] Parsing styles...
+[Parser] Extracting design tokens...
+[Parser] CSS length: 950658 chars
+[Parser] HTML length: 270365 chars
+[Parser] Extracting colors...
+[Parser:Colors] Processing CSS length: 500000
+[Parser:Colors] Pattern matched: 813 colors
+[Parser:Colors] Pattern matched: 240 colors
+[Parser:Colors] Pattern matched: 27 colors
+[Parser] ✓ Colors extracted: 20
+[Parser] Extracting typography...
+[Parser:Typography] Processing CSS length: 500000
+[Parser:Typography] Found 120 font-family declarations
+[Parser] ✓ Typography extracted
+[Parser] Extracting layout...
+[Parser] ✓ Layout extracted
+[Parser] Extracting spacing...
+[Parser] ✓ Spacing extracted
+[Parser] Extracting visual patterns...
+[Parser:Visual] Processing CSS length: 500000
+[Parser:Visual] Found 106 border-radius values
+[Parser:Visual] Found 213 box-shadow values
+[Parser:Visual] Found 112 transition values
+[Parser:Visual] Found 31 gradient values
+[Parser] ✓ Visual patterns extracted
+[Parser] Extracting imagery...
+[Parser] ✓ Imagery extracted
+[Parser] Extraction complete
+  - Colors: 20
+  - Font families: 5
+  - Font sizes: 10
+  - Spacing values: 15
+[Page 1/3] ✓ Parsed (20 colors, 10 images)
+[Page 1/3] Analyzing images...
+[AI:Images] Analyzing 10 images...
+[AI:Images] Selected 6 images for analysis
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-1-scaled-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-3-scaled-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2022/12/header-2023.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2025/05/quantal-response-equilibrium-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2025/04/how-to-punish-range-bettors-768x432.jpg
+[Scraper] Success with Cheerio (151077 chars of CSS)
+[Page 2/3] ✓ Scraped (method: cheerio)
+[Page 2/3] Parsing styles...
+[Parser] Extracting design tokens...
+[Parser] CSS length: 151077 chars
+[Parser] HTML length: 171203 chars
+[Parser] Extracting colors...
+[Parser:Colors] Processing CSS length: 151077
+[Parser:Colors] Pattern matched: 65 colors
+[Parser:Colors] Pattern matched: 138 colors
+[Parser:Colors] Pattern matched: 0 colors
+[Parser] ✓ Colors extracted: 10
+[Parser] Extracting typography...
+[Parser:Typography] Processing CSS length: 151077
+[Parser:Typography] Found 97 font-family declarations
+[Parser] ✓ Typography extracted
+[Parser] Extracting layout...
+[Parser] ✓ Layout extracted
+[Parser] Extracting spacing...
+[Parser] ✓ Spacing extracted
+[Parser] Extracting visual patterns...
+[Parser:Visual] Processing CSS length: 151077
+[Parser:Visual] Found 38 border-radius values
+[Parser:Visual] Found 33 box-shadow values
+[Parser:Visual] Found 6 transition values
+[Parser:Visual] Found 25 gradient values
+[Parser] ✓ Visual patterns extracted
+[Parser] Extracting imagery...
+[Parser] ✓ Imagery extracted
+[Parser] Extraction complete
+  - Colors: 10
+  - Font families: 5
+  - Font sizes: 10
+  - Spacing values: 15
+[Page 2/3] ✓ Parsed (10 colors, 8 images)
+[Page 2/3] Analyzing images...
+[AI:Images] Analyzing 8 images...
+[AI:Images] No valid images selected
+[Page 2/3] Generating style guide...
+[AI] Generating style guide with Claude...
+(node:18412) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[Scraper] Success with Cheerio (336126 chars of CSS)
+[Page 3/3] ✓ Scraped (method: cheerio)
+[Page 3/3] Parsing styles...
+[Parser] Extracting design tokens...
+[Parser] CSS length: 336126 chars
+[Parser] HTML length: 798112 chars
+[Parser] Extracting colors...
+[Parser:Colors] Processing CSS length: 336126
+[Parser:Colors] Pattern matched: 158 colors
+[Parser:Colors] Pattern matched: 222 colors
+[Parser:Colors] Pattern matched: 27 colors
+[Parser] ✓ Colors extracted: 16
+[Parser] Extracting typography...
+[Parser:Typography] Processing CSS length: 336126
+[Parser:Typography] Found 118 font-family declarations
+[Parser] ✓ Typography extracted
+[Parser] Extracting layout...
+[Parser] ✓ Layout extracted
+[Parser] Extracting spacing...
+[Parser] ✓ Spacing extracted
+[Parser] Extracting visual patterns...
+[Parser:Visual] Processing CSS length: 336126
+[Parser:Visual] Found 85 border-radius values
+[Parser:Visual] Found 61 box-shadow values
+[Parser:Visual] Found 58 transition values
+[Parser:Visual] Found 31 gradient values
+[Parser] ✓ Visual patterns extracted
+[Parser] Extracting imagery...
+[Parser] ✓ Imagery extracted
+[Parser] Extraction complete
+  - Colors: 16
+  - Font families: 5
+  - Font sizes: 10
+  - Spacing values: 15
+[Page 3/3] ✓ Parsed (16 colors, 10 images)
+[Page 3/3] Analyzing images...
+[AI:Images] Analyzing 10 images...
+[AI:Images] Selected 6 images for analysis
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-1-scaled-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-3-scaled-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2026/01/header-2-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2025/12/header-2-768x432.png
+[AI:Images] Fetching: https://blog.gtowizard.com/wp-content/uploads/2025/12/header-1-768x432.png
+[AI:Images] Successfully fetched 6 images
+[AI:Images] Attempting with model: claude-3-5-sonnet-20241022
+[AI:Images] Successfully fetched 6 images
+[AI:Images] Attempting with model: claude-3-5-sonnet-20241022
+[AI:Images] Vision model not available, falling back to Haiku
+[AI:Images] Vision model not available, falling back to Haiku
+[AI:Images] Analysis complete: {
+  imageTypes: [
+    {
+      type: 'Illustration',
+      count: 6,
+      description: 'Vector-style digital illustrations with minimalist, stylized human figures and abstract geometric backgrounds, using gradient color transitions and flat design principles. Figures rendered with simplified, smooth silhouettes lacking detailed facial features, emphasizing form and motion.'
+    }
+  ],
+  style: 'Modern digital illustration with isometric and flat design influences, utilizing bold color gradients and geometric abstraction',
+  tone: 'Strategic, competitive, analytical with undertones of tension and challenge',
+  dominantColors: [
+    'Vibrant Magenta',
+    'Deep Orange',
+    'Electric Blue',
+    'Lime Green',
+    'Saturated Red'
+  ],
+  subjects: [
+    'Abstract human figures',
+    'Strategy visualization',
+    'Competition scenarios',
+    'Decision-making processes',
+    'Symbolic game/contest representations'
+  ],
+  quality: 'High-end professional digital design with sophisticated color theory and compositional techniques',
+  consistency: 'Extremely high visual consistency across images, sharing graphic language and stylistic approach',
+  technicalDetails: {
+    compositionStyle: 'Centered, symmetrical layouts with strategic visual hierarchy',
+    lightingStyle: 'Dramatic gradient backlighting with strong color transitions',
+    renderingStyle: 'Minimalist vector graphics with subtle texture and depth effects'
+  }
+}
+[Page 3/3] ✓ Image analysis complete
+[Page 3/3] Generating style guide...
+[AI] Generating style guide with Claude...
+[AI:Images] Analysis complete: {
+  imageTypes: [
+    {
+      type: 'Illustration',
+      count: 3,
+      description: 'Stylized vector graphics with silhouetted human figures, using vibrant gradient color schemes featuring warm pinks, oranges, purples with soft radial light backgrounds. Figures rendered with minimal detail, emphasizing shapes and symbolic positioning. High contrast between foreground and background elements, creating a sense of depth and abstraction.'
+    },
+    {
+      type: 'Data Visualization',
+      count: 2,
+      description: 'Complex matrix-style data tables with color-coded grids, featuring alphanumeric combinations in red, green, and blue hues. Precise grid layouts with strategic color blocking to indicate data relationships. Accompanying graphics like cartoon mascots or scientific imagery add contextual storytelling.'
+    }
+  ],
+  style: 'Technical-analytical with playful, gradient-based design language',
+  tone: 'Intellectual, strategic, slightly whimsical',
+  dominantColors: [
+    'Magenta Pink',
+    'Electric Blue',
+    'Neon Green',
+    'Warm Sunset Orange',
+    'Deep Purple'
+  ],
+  subjects: [
+    'Data analysis',
+    'Strategic decision making',
+    'Game theory',
+    'Poker/gambling strategies'
+  ],
+  quality: 'High-production digital design',
+  consistency: 'Strong visual coherence across images',
+  technicalDetails: {
+    compositionStyle: 'Centered, symmetrical layouts with strong geometric elements',
+    lightingStyle: 'Soft radial gradients with dramatic color transitions',
+    renderingStyle: 'Flat vector graphics with subtle depth and shadowing'
+  }
+}
+[Page 1/3] ✓ Image analysis complete
+[Page 1/3] Generating style guide...
+[AI] Generating style guide with Claude...
+[AI] Style guide generated successfully
+[Page 2/3] ✓ Style guide generated (2800 chars)
+[AI] Style guide generated successfully
+[Page 3/3] ✓ Style guide generated (3081 chars)
+[AI] Style guide generated successfully
+[Page 1/3] ✓ Style guide generated (3446 chars)
+[API] ✓ Successfully analyzed 3/3 pages
+[API] Step 4: Combining reports...
+[AI:Combine] Combining 3 style guide reports...
+[AI:Combine] Successfully combined reports
+[API] ✓ Reports combined successfully
+[API] ======= Complete! Generated in 126.09s =======
+
+ POST /api/generate 200 in 126106ms
+ ✓ Compiled in 122ms (195 modules)

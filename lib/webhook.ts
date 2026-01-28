@@ -3,6 +3,7 @@
  */
 
 export interface WebhookPayload {
+  requestId?: string;
   url: string;
   markdown: string;
   generationTime: number;
