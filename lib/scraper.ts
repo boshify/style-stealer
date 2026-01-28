@@ -3,9 +3,22 @@
  */
 
 import * as cheerio from 'cheerio';
-import { chromium } from 'playwright';
 import type { ScrapedData, ScraperOptions } from './types';
 import { toAbsoluteUrl, normalizeUrl } from './utils';
+
+// Check if Playwright is available (it's an optional dependency)
+let playwrightAvailable = false;
+let chromium: any = null;
+
+try {
+  // Dynamic import to handle optional Playwright
+  const playwright = require('playwright');
+  chromium = playwright.chromium;
+  playwrightAvailable = true;
+  console.log('[Scraper] Playwright is available');
+} catch (error) {
+  console.log('[Scraper] Playwright not available, will use Cheerio only');
+}
 
 const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -46,13 +59,27 @@ export async function scrapeWebsite(
       return data;
     }
 
-    console.log('[Scraper] Insufficient CSS from Cheerio, falling back to Playwright');
-  } catch (error) {
-    console.log('[Scraper] Cheerio failed, falling back to Playwright:', error);
-  }
+    console.log('[Scraper] Insufficient CSS from Cheerio, attempting Playwright fallback');
 
-  // Fallback to Playwright
-  return scrapeWithPlaywright(normalizedUrl, opts);
+    // Only try Playwright if it's available
+    if (playwrightAvailable) {
+      return scrapeWithPlaywright(normalizedUrl, opts);
+    } else {
+      console.log('[Scraper] Playwright not available, using Cheerio data anyway');
+      return data; // Return what we got from Cheerio
+    }
+  } catch (error) {
+    console.log('[Scraper] Cheerio failed:', error);
+
+    // Try Playwright if available
+    if (playwrightAvailable) {
+      console.log('[Scraper] Falling back to Playwright');
+      return scrapeWithPlaywright(normalizedUrl, opts);
+    } else {
+      // No fallback available, re-throw the error
+      throw new Error(`Scraping failed and Playwright is not available: ${error}`);
+    }
+  }
 }
 
 /**
@@ -140,6 +167,11 @@ async function scrapeWithPlaywright(
   url: string,
   options: Required<ScraperOptions>
 ): Promise<ScrapedData> {
+  // Check if Playwright is available
+  if (!playwrightAvailable || !chromium) {
+    throw new Error('Playwright is not available. Install it with: npm install playwright && npx playwright install chromium');
+  }
+
   let browser;
 
   try {
