@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Use standalone output to simplify deployment
-  output: 'standalone',
-
   // Configure webpack to avoid bundling issues
   webpack: (config, { isServer }) => {
     if (isServer) {
