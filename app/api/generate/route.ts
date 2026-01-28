@@ -5,6 +5,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+
+// Force dynamic rendering - don't try to prerender this API route during build
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 import { scrapeWebsite } from '@/lib/scraper';
 import { parseStyles } from '@/lib/parser';
 import { generateStyleGuide, analyzeImages, combineReports } from '@/lib/ai';
