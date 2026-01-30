@@ -36,7 +36,18 @@ const RequestSchema = z.object({
     .string()
     .max(256, 'Project ID too long (max 256 characters)')
     .optional(), // Optional project ID to track requests
-  async: z.boolean().optional(), // Enable async processing with polling
+  async: z
+    .union([
+      z.boolean(),
+      z.string().transform((val) => {
+        // Handle string booleans from form data / n8n
+        const lower = val.toLowerCase();
+        if (lower === 'true' || lower === '1' || lower === 'yes') return true;
+        if (lower === 'false' || lower === '0' || lower === 'no') return false;
+        return undefined;
+      }),
+    ])
+    .optional(), // Enable async processing with polling
 });
 
 /**
