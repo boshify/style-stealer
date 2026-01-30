@@ -18,40 +18,52 @@ interface BrowserProfile {
 
 const BROWSER_PROFILES: BrowserProfile[] = [
   {
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    secChUa: '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    secChUa: '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     secChUaPlatform: '"Windows"',
     acceptLanguage: 'en-US,en;q=0.9',
   },
   {
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    secChUa: '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    secChUa: '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     secChUaPlatform: '"macOS"',
     acceptLanguage: 'en-US,en;q=0.9',
   },
   {
-    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    secChUa: '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    secChUa: '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     secChUaPlatform: '"Linux"',
     acceptLanguage: 'en-US,en;q=0.9',
   },
   {
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
     secChUa: '', // Firefox doesn't send sec-ch-ua
     secChUaPlatform: '',
     acceptLanguage: 'en-US,en;q=0.9',
   },
   {
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
     secChUa: '', // Safari doesn't send sec-ch-ua
     secChUaPlatform: '',
     acceptLanguage: 'en-US,en;q=0.9',
   },
   {
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
-    secChUa: '"Not_A Brand";v="8", "Chromium";v="120", "Microsoft Edge";v="120"',
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+    secChUa: '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
     secChUaPlatform: '"Windows"',
     acceptLanguage: 'en-US,en;q=0.9',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0',
+    secChUa: '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    secChUaPlatform: '"macOS"',
+    acceptLanguage: 'en-US,en;q=0.9',
+  },
+  {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    secChUa: '',
+    secChUaPlatform: '',
+    acceptLanguage: 'en-GB,en;q=0.9',
   },
 ];
 
@@ -89,50 +101,113 @@ export async function scrapeWebsite(
 }
 
 /**
- * Check if HTML content indicates a soft block (Cloudflare, CAPTCHA, etc.)
+ * Sleep for a specified duration
  */
-function detectSoftBlock(html: string): boolean {
-  const lowerHtml = html.toLowerCase();
-  const blockMarkers = [
-    'checking your browser',
-    'enable javascript',
-    'captcha',
-    'cloudflare',
-    'please verify you are a human',
-    'access denied',
-    'are you a robot',
-  ];
-
-  return blockMarkers.some(marker => lowerHtml.includes(marker));
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
- * Fallback to Jina Reader API when direct access fails
+ * Build enhanced headers that closely mimic a real browser
  */
-async function fetchViaJinaReader(url: string, timeout: number): Promise<string> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+function buildBrowserHeaders(profile: BrowserProfile, url: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    'User-Agent': profile.userAgent,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Language': profile.acceptLanguage,
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'Cache-Control': 'max-age=0',
+    'DNT': '1',
+    'Connection': 'keep-alive',
+  };
 
-  try {
-    console.log(`[Scraper] Attempting Jina Reader fallback for: ${url}`);
-    const jinaUrl = `https://r.jina.ai/${url}`;
-    const response = await fetch(jinaUrl, {
-      headers: {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Jina Reader failed: ${response.status}`);
-    }
-
-    const html = await response.text();
-    console.log(`[Scraper] Jina Reader success`);
-    return html;
-  } finally {
-    clearTimeout(timeoutId);
+  // Add sec-ch-ua headers for Chromium-based browsers
+  if (profile.secChUa) {
+    headers['sec-ch-ua'] = profile.secChUa;
+    headers['sec-ch-ua-mobile'] = '?0';
+    headers['sec-ch-ua-platform'] = profile.secChUaPlatform;
+    headers['sec-ch-ua-full-version-list'] = profile.secChUa;
   }
+
+  return headers;
+}
+
+/**
+ * Fetch HTML with retry logic and exponential backoff
+ */
+async function fetchWithRetry(
+  url: string,
+  maxRetries: number = 3
+): Promise<{ html: string; profile: BrowserProfile }> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Use a different browser profile for each retry
+      const profile = getRandomBrowserProfile();
+      const headers = buildBrowserHeaders(profile, url);
+
+      console.log(`[Scraper] Attempt ${attempt + 1}/${maxRetries} using ${profile.userAgent.includes('Firefox') ? 'Firefox' : profile.userAgent.includes('Safari') && !profile.userAgent.includes('Chrome') ? 'Safari' : profile.userAgent.includes('Edg') ? 'Edge' : 'Chrome'} profile`);
+
+      // Add a small random delay to appear more human-like (except first attempt)
+      if (attempt > 0) {
+        const delay = Math.random() * 1000 + 500; // 500-1500ms
+        console.log(`[Scraper] Waiting ${Math.round(delay)}ms before retry...`);
+        await sleep(delay);
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      try {
+        const response = await fetch(url, {
+          headers,
+          signal: controller.signal,
+          redirect: 'follow',
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const html = await response.text();
+
+        // Check if we got actual HTML content (not an error page)
+        if (html.length < 500 && (html.includes('error') || html.includes('denied') || html.includes('forbidden'))) {
+          throw new Error('Received error page instead of content');
+        }
+
+        console.log(`[Scraper] Successfully fetched ${html.length} bytes`);
+        return { html, profile };
+
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+    } catch (error: any) {
+      lastError = error;
+      console.log(`[Scraper] Attempt ${attempt + 1} failed: ${error.message}`);
+
+      // Don't retry on timeout errors
+      if (error.name === 'AbortError') {
+        throw error;
+      }
+
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error('All retry attempts failed');
 }
 
 /**
@@ -143,82 +218,10 @@ async function scrapeWithCheerio(
   url: string,
   options: Required<ScraperOptions>
 ): Promise<ScrapedData> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), options.timeout);
+  // Fetch HTML with retry logic
+  const { html, profile } = await fetchWithRetry(url, 3);
 
-  try {
-    // Use random browser profile for rotation
-    const profile = getRandomBrowserProfile();
-
-    // Build comprehensive headers mimicking real browsers
-    const headers: Record<string, string> = {
-      'User-Agent': profile.userAgent,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Accept-Language': profile.acceptLanguage,
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Referer': 'https://www.google.com/',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1',
-      'Cache-Control': 'max-age=0',
-    };
-
-    // Add sec-ch-ua headers for Chromium-based browsers
-    if (profile.secChUa) {
-      headers['sec-ch-ua'] = profile.secChUa;
-      headers['sec-ch-ua-mobile'] = '?0';
-      headers['sec-ch-ua-platform'] = profile.secChUaPlatform;
-    }
-
-    console.log(`[Scraper] Using ${profile.userAgent.includes('Firefox') ? 'Firefox' : profile.userAgent.includes('Safari') && !profile.userAgent.includes('Chrome') ? 'Safari' : profile.userAgent.includes('Edg') ? 'Edge' : 'Chrome'} profile`);
-
-    // Attempt direct fetch
-    let html: string;
-    let usedFallback = false;
-
-    try {
-      const response = await fetch(url, {
-        headers,
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        // Try Jina Reader fallback for access errors
-        if ([403, 401, 429, 451, 503].includes(response.status)) {
-          console.log(`[Scraper] HTTP ${response.status}, attempting Jina Reader fallback`);
-          html = await fetchViaJinaReader(url, options.timeout);
-          usedFallback = true;
-        } else {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-      } else {
-        html = await response.text();
-
-        // Check for soft blocks (Cloudflare, CAPTCHA)
-        if (detectSoftBlock(html)) {
-          console.log(`[Scraper] Soft block detected, attempting Jina Reader fallback`);
-          try {
-            html = await fetchViaJinaReader(url, options.timeout);
-            usedFallback = true;
-          } catch (fallbackError) {
-            console.log(`[Scraper] Jina Reader fallback failed, using original (possibly blocked) content`);
-            // Continue with potentially blocked content rather than failing completely
-          }
-        }
-      }
-    } catch (fetchError: any) {
-      // If network error, try Jina Reader as last resort
-      if (fetchError.name === 'AbortError') {
-        throw fetchError; // Don't retry on timeout
-      }
-      console.log(`[Scraper] Fetch failed (${fetchError.message}), attempting Jina Reader fallback`);
-      html = await fetchViaJinaReader(url, options.timeout);
-      usedFallback = true;
-    }
-
-    const $ = cheerio.load(html);
+  const $ = cheerio.load(html);
 
     // Extract title
     const title = $('title').text().trim() || 'Untitled';
@@ -244,14 +247,13 @@ async function scrapeWithCheerio(
       cssUrls.slice(0, 10).map(async (cssUrl) => {
         try {
           const cssProfile = getRandomBrowserProfile();
+          const cssHeaders = buildBrowserHeaders(cssProfile, cssUrl);
           const cssResponse = await fetch(cssUrl, {
             headers: {
-              'User-Agent': cssProfile.userAgent,
+              ...cssHeaders,
               'Accept': 'text/css,*/*;q=0.1',
-              'Accept-Language': cssProfile.acceptLanguage,
               'Referer': url,
             },
-            signal: controller.signal,
           });
           return cssResponse.ok ? await cssResponse.text() : '';
         } catch {
@@ -263,20 +265,13 @@ async function scrapeWithCheerio(
     // Combine all CSS
     const css = [...inlineStyles, ...externalCss].join('\n\n');
 
-    if (usedFallback) {
-      console.log(`[Scraper] Success via Jina Reader fallback (${css.length} chars of CSS)`);
-    }
-
     return {
       html,
       css,
       url,
       title,
-      method: usedFallback ? 'cheerio-jina-fallback' : 'cheerio',
+      method: 'cheerio',
     };
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 /**
