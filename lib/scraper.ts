@@ -131,12 +131,12 @@ async function fetchViaJinaReader(url: string): Promise<string> {
 }
 
 /**
- * Fetch HTML with retry logic and exponential backoff using got-scraping
+ * Fetch HTML with retry logic and exponential backoff
  */
 async function fetchWithRetry(
   url: string,
   maxRetries: number = 3
-): Promise<{ html: string; profile: BrowserProfile; usedJina: boolean }> {
+): Promise<{ html: string; profile: BrowserProfile }> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -191,7 +191,7 @@ async function fetchWithRetry(
         }
 
         console.log(`[Scraper] Successfully fetched ${html.length} bytes`);
-        return { html, profile, usedJina: false };
+        return { html, profile };
 
       } catch (error: any) {
         throw error;
@@ -201,16 +201,9 @@ async function fetchWithRetry(
       lastError = error;
       console.log(`[Scraper] Attempt ${attempt + 1} failed: ${error.message}`);
 
-      // If it's the last attempt, try Jina Reader as emergency fallback
+      // If it's the last attempt, throw the error (let caller handle fallback)
       if (attempt === maxRetries - 1) {
-        console.log(`[Scraper] All direct attempts failed, trying Jina Reader emergency fallback...`);
-        try {
-          const html = await fetchViaJinaReader(url);
-          return { html, profile: BROWSER_PROFILES[0], usedJina: true };
-        } catch (jinaError: any) {
-          console.log(`[Scraper] Jina Reader fallback also failed: ${jinaError.message}`);
-          throw lastError; // Throw the original error
-        }
+        throw lastError;
       }
     }
   }
@@ -220,18 +213,14 @@ async function fetchWithRetry(
 
 /**
  * Scrape using HTTP + Cheerio (fast, works for static sites)
- * Enhanced with anti-blocking measures using got-scraping
+ * Enhanced with anti-blocking measures
  */
 async function scrapeWithCheerio(
   url: string,
   options: Required<ScraperOptions>
 ): Promise<ScrapedData> {
-  // Fetch HTML with retry logic (with emergency Jina fallback)
-  const { html, profile, usedJina } = await fetchWithRetry(url, 3);
-
-  if (usedJina) {
-    console.log(`[Scraper] WARNING: Using Jina Reader markdown - CSS/images may be limited`);
-  }
+  // Fetch HTML with retry logic (throws on failure - caller handles fallback)
+  const { html, profile } = await fetchWithRetry(url, 3);
 
   const $ = cheerio.load(html);
 
@@ -254,8 +243,8 @@ async function scrapeWithCheerio(
       }
     });
 
-    // Fetch external CSS files with proper headers (skip if using Jina)
-    const externalCss = usedJina ? [] : await Promise.all(
+    // Fetch external CSS files with proper headers
+    const externalCss = await Promise.all(
       cssUrls.slice(0, 10).map(async (cssUrl) => {
         try {
           const cssProfile = getRandomBrowserProfile();
