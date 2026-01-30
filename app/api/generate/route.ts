@@ -20,6 +20,19 @@ import { postToWebhook, isValidWebhookUrl } from '@/lib/webhook';
 import type { GenerateRequest, GenerateResponse } from '@/lib/types';
 import { storeResult, generateRequestId } from '@/lib/storage';
 
+/**
+ * Extract homepage URL from any URL
+ */
+function getHomepageUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    return `${parsedUrl.protocol}//${parsedUrl.host}`;
+  } catch {
+    // If URL parsing fails, return the original
+    return url;
+  }
+}
+
 // Request validation schema with strict length limits
 const RequestSchema = z.object({
   url: z
@@ -242,10 +255,29 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Scrape the primary page to discover additional pages
     console.log('[API] Step 1: Scraping primary page for page discovery...');
-    const primaryScrapedData = await scrapeWebsite(url, {
-      timeout: 30000,
-    });
-    console.log('[API] ✓ Primary page scraped');
+    let primaryScrapedData;
+    let actualUrl = url;
+
+    try {
+      primaryScrapedData = await scrapeWebsite(url, {
+        timeout: 30000,
+      });
+      console.log('[API] ✓ Primary page scraped');
+    } catch (error: any) {
+      // If the URL fails (404, etc.), fall back to homepage
+      const homepage = getHomepageUrl(url);
+      console.log(`[API] ⚠️  Primary URL failed (${error.message}), trying homepage: ${homepage}`);
+
+      try {
+        primaryScrapedData = await scrapeWebsite(homepage, {
+          timeout: 30000,
+        });
+        actualUrl = homepage;
+        console.log('[API] ✓ Homepage scraped successfully as fallback');
+      } catch (homepageError: any) {
+        throw new Error(`Both primary URL and homepage failed. Primary: ${error.message}, Homepage: ${homepageError.message}`);
+      }
+    }
 
     // Step 2: Discover 2 additional pages
     console.log('[API] Step 2: Discovering additional pages...');
@@ -286,7 +318,7 @@ export async function POST(request: NextRequest) {
     if (webhook_url) {
       console.log('[API] Posting to webhook...');
       const webhookSuccess = await postToWebhook(webhook_url, {
-        url,
+        url: actualUrl, // Use the URL we actually scraped
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
@@ -563,12 +595,30 @@ async function processAsync(
   try {
     console.log(`\n[API:Async:${requestId}] Starting background processing for: ${url}`);
 
-    // Step 1: Scrape the primary page
-    const primaryScrapedData = await scrapeWebsite(url, { timeout: 30000 });
+    // Step 1: Scrape the primary page (with homepage fallback)
+    let primaryScrapedData;
+    let actualUrl = url;
 
-    // Step 2: Discover additional pages
-    const additionalPages = await discoverPages(url, primaryScrapedData.html);
-    const allPages = [url, ...additionalPages];
+    try {
+      primaryScrapedData = await scrapeWebsite(url, { timeout: 30000 });
+      console.log(`[API:Async:${requestId}] Primary page scraped`);
+    } catch (error: any) {
+      // If the URL fails (404, etc.), fall back to homepage
+      const homepage = getHomepageUrl(url);
+      console.log(`[API:Async:${requestId}] ⚠️  Primary URL failed (${error.message}), trying homepage: ${homepage}`);
+
+      try {
+        primaryScrapedData = await scrapeWebsite(homepage, { timeout: 30000 });
+        actualUrl = homepage;
+        console.log(`[API:Async:${requestId}] Homepage scraped successfully as fallback`);
+      } catch (homepageError: any) {
+        throw new Error(`Both primary URL and homepage failed. Primary: ${error.message}, Homepage: ${homepageError.message}`);
+      }
+    }
+
+    // Step 2: Discover additional pages (from actual URL we successfully scraped)
+    const additionalPages = await discoverPages(actualUrl, primaryScrapedData.html);
+    const allPages = [actualUrl, ...additionalPages];
 
     // Step 3: Analyze all pages concurrently
     const pageReports = await Promise.all(
@@ -608,7 +658,7 @@ async function processAsync(
       console.log(`[API:Async:${requestId}] Posting to n8n webhook...`);
       await postToWebhook(n8nWebhook, {
         requestId,
-        url,
+        url: actualUrl, // Use the URL we actually scraped
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
@@ -622,7 +672,7 @@ async function processAsync(
       console.log(`[API:Async:${requestId}] Posting to user webhook...`);
       await postToWebhook(webhook_url, {
         requestId,
-        url,
+        url: actualUrl, // Use the URL we actually scraped
         markdown: combinedMarkdown,
         generationTime,
         pagesAnalyzed: successfulReports.length,
