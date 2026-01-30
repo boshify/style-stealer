@@ -14,7 +14,7 @@ export interface ScrapedData {
   css: string;
   url: string;
   title: string;
-  method: 'cheerio' | 'playwright';
+  method: 'cheerio' | 'playwright' | 'cheerio-jina-fallback';
 }
 
 /**
