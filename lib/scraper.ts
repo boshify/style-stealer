@@ -1,10 +1,11 @@
 /**
  * Web scraping service with Cheerio (Railway deployment - Cheerio only)
  * Note: Playwright has been removed to avoid build-time bundling issues
- * Enhanced with anti-blocking techniques inspired by page_scraper
+ * Enhanced with anti-blocking techniques using got for HTTP/2 support
  */
 
 import * as cheerio from 'cheerio';
+import got from 'got';
 import type { ScrapedData, ScraperOptions } from './types';
 import { toAbsoluteUrl, normalizeUrl } from './utils';
 
@@ -108,76 +109,81 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Build enhanced headers that closely mimic a real browser
+ * Fallback to Jina Reader API when all else fails
  */
-function buildBrowserHeaders(profile: BrowserProfile, url: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    'User-Agent': profile.userAgent,
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Accept-Language': profile.acceptLanguage,
-    'Accept-Encoding': 'gzip, deflate, br, zstd',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-    'Cache-Control': 'max-age=0',
-    'DNT': '1',
-    'Connection': 'keep-alive',
-  };
+async function fetchViaJinaReader(url: string): Promise<string> {
+  console.log(`[Scraper] Emergency Jina Reader fallback for: ${url}`);
+  try {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const response = await got(jinaUrl, {
+      timeout: { request: 30000 },
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      http2: true,
+    });
 
-  // Add sec-ch-ua headers for Chromium-based browsers
-  if (profile.secChUa) {
-    headers['sec-ch-ua'] = profile.secChUa;
-    headers['sec-ch-ua-mobile'] = '?0';
-    headers['sec-ch-ua-platform'] = profile.secChUaPlatform;
-    headers['sec-ch-ua-full-version-list'] = profile.secChUa;
+    console.log(`[Scraper] Jina Reader success (markdown fallback)`);
+    return response.body;
+  } catch (error: any) {
+    throw new Error(`Jina Reader failed: ${error.message}`);
   }
-
-  return headers;
 }
 
 /**
- * Fetch HTML with retry logic and exponential backoff
+ * Fetch HTML with retry logic and exponential backoff using got-scraping
  */
 async function fetchWithRetry(
   url: string,
   maxRetries: number = 3
-): Promise<{ html: string; profile: BrowserProfile }> {
+): Promise<{ html: string; profile: BrowserProfile; usedJina: boolean }> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       // Use a different browser profile for each retry
       const profile = getRandomBrowserProfile();
-      const headers = buildBrowserHeaders(profile, url);
+      const browserName = profile.userAgent.includes('Firefox') ? 'Firefox' :
+                         profile.userAgent.includes('Safari') && !profile.userAgent.includes('Chrome') ? 'Safari' :
+                         profile.userAgent.includes('Edg') ? 'Edge' : 'Chrome';
 
-      console.log(`[Scraper] Attempt ${attempt + 1}/${maxRetries} using ${profile.userAgent.includes('Firefox') ? 'Firefox' : profile.userAgent.includes('Safari') && !profile.userAgent.includes('Chrome') ? 'Safari' : profile.userAgent.includes('Edg') ? 'Edge' : 'Chrome'} profile`);
+      console.log(`[Scraper] Attempt ${attempt + 1}/${maxRetries} using ${browserName} profile`);
 
-      // Add a small random delay to appear more human-like (except first attempt)
+      // Add exponential backoff with jitter (except first attempt)
       if (attempt > 0) {
-        const delay = Math.random() * 1000 + 500; // 500-1500ms
+        const baseDelay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s...
+        const jitter = Math.random() * 1000; // 0-1000ms
+        const delay = baseDelay + jitter;
         console.log(`[Scraper] Waiting ${Math.round(delay)}ms before retry...`);
         await sleep(delay);
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
       try {
-        const response = await fetch(url, {
-          headers,
-          signal: controller.signal,
-          redirect: 'follow',
+        // Use got with HTTP/2 support for better compatibility
+        const response = await got(url, {
+          timeout: { request: 30000 },
+          headers: {
+            'User-Agent': profile.userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': profile.acceptLanguage,
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            ...(profile.secChUa && {
+              'sec-ch-ua': profile.secChUa,
+              'sec-ch-ua-mobile': '?0',
+              'sec-ch-ua-platform': profile.secChUaPlatform,
+            }),
+          },
+          http2: true, // Enable HTTP/2
+          followRedirect: true,
         });
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const html = await response.text();
+        const html = response.body;
 
         // Check if we got actual HTML content (not an error page)
         if (html.length < 500 && (html.includes('error') || html.includes('denied') || html.includes('forbidden'))) {
@@ -185,24 +191,26 @@ async function fetchWithRetry(
         }
 
         console.log(`[Scraper] Successfully fetched ${html.length} bytes`);
-        return { html, profile };
+        return { html, profile, usedJina: false };
 
-      } finally {
-        clearTimeout(timeoutId);
+      } catch (error: any) {
+        throw error;
       }
 
     } catch (error: any) {
       lastError = error;
       console.log(`[Scraper] Attempt ${attempt + 1} failed: ${error.message}`);
 
-      // Don't retry on timeout errors
-      if (error.name === 'AbortError') {
-        throw error;
-      }
-
-      // If it's the last attempt, throw the error
+      // If it's the last attempt, try Jina Reader as emergency fallback
       if (attempt === maxRetries - 1) {
-        throw error;
+        console.log(`[Scraper] All direct attempts failed, trying Jina Reader emergency fallback...`);
+        try {
+          const html = await fetchViaJinaReader(url);
+          return { html, profile: BROWSER_PROFILES[0], usedJina: true };
+        } catch (jinaError: any) {
+          console.log(`[Scraper] Jina Reader fallback also failed: ${jinaError.message}`);
+          throw lastError; // Throw the original error
+        }
       }
     }
   }
@@ -212,14 +220,18 @@ async function fetchWithRetry(
 
 /**
  * Scrape using HTTP + Cheerio (fast, works for static sites)
- * Enhanced with anti-blocking measures
+ * Enhanced with anti-blocking measures using got-scraping
  */
 async function scrapeWithCheerio(
   url: string,
   options: Required<ScraperOptions>
 ): Promise<ScrapedData> {
-  // Fetch HTML with retry logic
-  const { html, profile } = await fetchWithRetry(url, 3);
+  // Fetch HTML with retry logic (with emergency Jina fallback)
+  const { html, profile, usedJina } = await fetchWithRetry(url, 3);
+
+  if (usedJina) {
+    console.log(`[Scraper] WARNING: Using Jina Reader markdown - CSS/images may be limited`);
+  }
 
   const $ = cheerio.load(html);
 
@@ -242,20 +254,22 @@ async function scrapeWithCheerio(
       }
     });
 
-    // Fetch external CSS files with proper headers
-    const externalCss = await Promise.all(
+    // Fetch external CSS files with proper headers (skip if using Jina)
+    const externalCss = usedJina ? [] : await Promise.all(
       cssUrls.slice(0, 10).map(async (cssUrl) => {
         try {
           const cssProfile = getRandomBrowserProfile();
-          const cssHeaders = buildBrowserHeaders(cssProfile, cssUrl);
-          const cssResponse = await fetch(cssUrl, {
+          const response = await got(cssUrl, {
+            timeout: { request: 10000 },
             headers: {
-              ...cssHeaders,
+              'User-Agent': cssProfile.userAgent,
               'Accept': 'text/css,*/*;q=0.1',
+              'Accept-Language': cssProfile.acceptLanguage,
               'Referer': url,
             },
+            http2: true,
           });
-          return cssResponse.ok ? await cssResponse.text() : '';
+          return response.body;
         } catch {
           return '';
         }
@@ -280,22 +294,19 @@ async function scrapeWithCheerio(
 export async function testUrl(url: string): Promise<boolean> {
   try {
     const normalized = normalizeUrl(url);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
     const profile = getRandomBrowserProfile();
-    const response = await fetch(normalized, {
+
+    await got(normalized, {
       method: 'HEAD',
+      timeout: { request: 10000 },
       headers: {
         'User-Agent': profile.userAgent,
         'Accept': '*/*',
-        'Referer': 'https://www.google.com/',
       },
-      signal: controller.signal,
+      http2: true,
     });
 
-    clearTimeout(timeoutId);
-    return response.ok;
+    return true;
   } catch {
     return false;
   }

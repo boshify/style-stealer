@@ -268,3 +268,7 @@
 
  POST /api/generate 200 in 126106ms
  ✓ Compiled in 122ms (195 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 2.1s (544 modules)
+ GET / 200 in 2526ms
+ ✓ Compiled in 102ms (232 modules)
