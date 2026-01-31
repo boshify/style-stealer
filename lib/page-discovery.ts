@@ -213,19 +213,21 @@ function extractCandidateLinks(baseUrl: string, html: string, maxLinks: number =
 }
 
 /**
- * Intelligently discover 2 individual content pages by browsing autonomously
+ * Intelligently discover 2 additional individual content pages by browsing autonomously
+ * (3 pages total including the base URL)
  */
 export async function discoverPages(baseUrl: string, initialHtml: string): Promise<string[]> {
   console.log('[Discovery] Starting intelligent page discovery...');
 
-  const MAX_ATTEMPTS = 10; // Prevent infinite browsing
+  const MAX_ATTEMPTS = 15; // Allow more attempts to find 3 total pages
+  const TARGET_ADDITIONAL_PAGES = 2; // 2 additional pages + base URL = 3 total
   const goodPages: string[] = [];
   const visited = new Set<string>();
   const toVisit: string[] = [baseUrl];
 
   let attempts = 0;
 
-  while (goodPages.length < 2 && toVisit.length > 0 && attempts < MAX_ATTEMPTS) {
+  while (goodPages.length < TARGET_ADDITIONAL_PAGES + 1 && toVisit.length > 0 && attempts < MAX_ATTEMPTS) {
     attempts++;
     const currentUrl = toVisit.shift()!;
 
@@ -255,7 +257,7 @@ export async function discoverPages(baseUrl: string, initialHtml: string): Promi
           goodPages.push(currentUrl);
 
           // If we still need more pages, add some candidates
-          if (goodPages.length < 2) {
+          if (goodPages.length < TARGET_ADDITIONAL_PAGES + 1) {
             const candidates = extractCandidateLinks(currentUrl, html, 5);
             candidates.forEach(url => {
               if (!visited.has(url)) toVisit.push(url);
@@ -295,8 +297,10 @@ export async function discoverPages(baseUrl: string, initialHtml: string): Promi
   console.log(`[Discovery] Complete! Found ${goodPages.length} suitable pages after ${attempts} attempts`);
 
   // Return up to 2 additional pages (excluding the base URL if it's in the list)
-  const additionalPages = goodPages.filter(url => url !== baseUrl).slice(0, 2);
+  // This gives us 3 total pages: base URL + 2 additional
+  const additionalPages = goodPages.filter(url => url !== baseUrl).slice(0, TARGET_ADDITIONAL_PAGES);
   console.log('[Discovery] Additional pages:', additionalPages);
+  console.log(`[Discovery] Total pages for analysis: ${1 + additionalPages.length} (base + ${additionalPages.length} additional)`);
 
   return additionalPages;
 }

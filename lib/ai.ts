@@ -331,6 +331,18 @@ export async function analyzeImages(
           }
 
           const buffer = await response.arrayBuffer();
+
+          // Skip images that are too large (> 5MB) or too small (< 1KB) for vision API
+          const sizeInBytes = buffer.byteLength;
+          if (sizeInBytes > 5 * 1024 * 1024) {
+            console.log('[AI:Images] Skipping image (too large):', absoluteUrl, `${(sizeInBytes / 1024 / 1024).toFixed(2)}MB`);
+            return null;
+          }
+          if (sizeInBytes < 1024) {
+            console.log('[AI:Images] Skipping image (too small):', absoluteUrl, `${sizeInBytes} bytes`);
+            return null;
+          }
+
           const base64 = Buffer.from(buffer).toString('base64');
 
           // Detect media type - must be one of the allowed types
@@ -664,8 +676,9 @@ function selectRepresentativeImages(urls: string[], maxCount: number): string[] 
       return false;
     }
 
-    // Only include common image formats (including SVG for logos)
-    if (!lower.match(/\.(jpg|jpeg|png|webp|gif|svg)($|\?)/)) {
+    // Only include raster image formats (Claude vision API doesn't support SVG)
+    // SVG files will be detected separately by pattern-based logo detection
+    if (!lower.match(/\.(jpg|jpeg|png|webp|gif)($|\?)/)) {
       return false;
     }
 
