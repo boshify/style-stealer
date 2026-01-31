@@ -279,13 +279,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 2: Discover 2 additional pages
+    // Step 2: Discover 2 additional pages (use actualUrl which might be homepage fallback)
     console.log('[API] Step 2: Discovering additional pages...');
-    const additionalPages = await discoverPages(url, primaryScrapedData.html);
+    const additionalPages = await discoverPages(actualUrl, primaryScrapedData.html);
     console.log(`[API] ✓ Found ${additionalPages.length} additional pages:`, additionalPages);
 
     // Step 3: Analyze all pages concurrently (primary + additional)
-    const allPages = [url, ...additionalPages];
+    const allPages = [actualUrl, ...additionalPages];
     console.log(`[API] Step 3: Analyzing ${allPages.length} pages concurrently...`);
 
     const pageReports = await Promise.all(
