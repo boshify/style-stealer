@@ -180,21 +180,30 @@ export interface ImageAnalysis {
     type: 'regular' | 'dark' | 'light' | 'icon' | 'favicon' | 'mobile' | 'other';
     description?: string;     // e.g., "Dark logo for light backgrounds"
   }>;
+  featuredImageStyle?: {      // Featured image/thumbnail styling (CRITICAL for blog posts/products)
+    description: string;      // Extremely detailed description of featured image styling
+    aspectRatio?: string;     // Common aspect ratio (e.g., "16:9", "4:3", "1:1")
+    treatment?: string;       // Visual styling approach
+    consistency?: string;     // How uniform the style is across featured images
+  };
   imageTypes?: Array<{        // Detailed breakdown by image type
-    type: string;             // e.g., "Featured Images", "Charts", "Screenshots"
+    type: string;             // e.g., "Featured Images", "Hero Images", "Photography", "Illustrations", "Graphics", "Charts", "Screenshots", "Icons"
     count: number;
-    description: string;      // Vivid, detailed description for AI image generation
+    description: string;      // VIVID, detailed description suitable for AI image generation (can be multiple paragraphs)
+    stylingApproach?: string; // How this image type is consistently styled across the site
+    examples?: string[];      // Specific examples from the analyzed images
   }>;
   style: string;              // e.g., "photography", "illustration", "mixed"
   tone: string;               // e.g., "professional", "playful", "minimal"
-  dominantColors: string[];   // Colors found in images
+  dominantColors: string[];   // Colors found in images (with specific names and hex codes)
   subjects: string[];         // What the images depict
   quality: string;            // e.g., "high-resolution", "stock photos", "custom"
-  consistency: string;        // How consistent the imagery is
+  consistency: string;        // How consistent the imagery is - patterns and variations
   technicalDetails?: {        // Technical details about the imagery
-    compositionStyle?: string;
-    lightingStyle?: string;
-    renderingStyle?: string;
+    compositionStyle?: string;      // Detailed composition patterns
+    lightingStyle?: string;         // Lighting approach across images
+    renderingStyle?: string;        // Rendering and finishing techniques
+    colorGrading?: string;          // Color treatment and grading approach
   };
 }
 

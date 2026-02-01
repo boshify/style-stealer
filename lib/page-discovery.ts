@@ -22,9 +22,11 @@ function getAnthropicClient(): Anthropic {
 }
 
 interface PageClassification {
-  type: 'individual_content' | 'navigational' | 'homepage';
+  type: 'individual_content' | 'navigational' | 'homepage' | 'blog_archive';
   confidence: number; // 0-1
   reasoning: string;
+  imageCount?: number; // Number of images found on the page
+  hasFeaturedImages?: boolean; // Whether page has featured/thumbnail images
   suggestedLinks?: string[]; // If navigational, which links to try next
 }
 
@@ -44,6 +46,19 @@ async function classifyPage(url: string, html: string): Promise<PageClassificati
   const articleCount = $('article').length;
   const listItemCount = $('li').length;
 
+  // Count images on the page
+  const imageCount = $('img').filter((_, img) => {
+    const src = $(img).attr('src');
+    // Filter out tiny icons and tracking pixels
+    if (!src) return false;
+    return !src.includes('1x1') && !src.includes('tracking') && !src.includes('pixel');
+  }).length;
+
+  // Detect featured/thumbnail images (common in blog loops)
+  const hasFeaturedImages =
+    $('img[class*="featured"], img[class*="thumbnail"], .post-thumbnail img, .entry-image img').length > 0 ||
+    ($('article img, .post img, .entry img').length >= 2); // Multiple article images suggest blog loop
+
   // Extract navigation links (first 20)
   const links: string[] = [];
   $('a[href]').slice(0, 20).each((_, elem) => {
@@ -57,24 +72,29 @@ async function classifyPage(url: string, html: string): Promise<PageClassificati
   // Extract text snippet from main content area
   const mainContent = $('main, article, .content, #content').first().text().slice(0, 500);
 
-  const prompt = `Analyze this webpage and classify it into one of three categories:
+  const prompt = `Analyze this webpage and classify it into one of four categories:
 
 1. **individual_content**: A specific content page like:
-   - Blog post / article
-   - Product page
-   - Landing page with specific focus
-   - About page
-   - Case study
-   - Service detail page
+   - Blog post / article WITH IMAGES (preferred)
+   - Product page with product images
+   - Landing page with visual content
+   - About page with team photos
+   - Case study with screenshots/examples
+   - Service detail page with illustrations
 
-2. **navigational**: A list/index/category page like:
-   - Blog archive / category list
-   - Product listing page
+2. **blog_archive**: Blog listing/archive page - GOOD for featured image analysis:
+   - Blog homepage with post previews
+   - Blog category/tag pages
+   - Blog archive pages
+   - Must have multiple posts with featured/thumbnail images
+
+3. **navigational**: Generic list/index pages - SKIP these:
+   - Generic category lists without images
+   - Site maps
    - Search results
-   - Tag/category pages
-   - Site map
+   - Link directories
 
-3. **homepage**: The main homepage/landing page
+4. **homepage**: The main homepage/landing page - GOOD for overall style
 
 **Page Information:**
 URL: ${url}
@@ -82,6 +102,8 @@ Title: ${title}
 H1 count: ${h1Count}
 Article tags: ${articleCount}
 List items: ${listItemCount}
+Image count: ${imageCount}
+Has featured/thumbnail images: ${hasFeaturedImages}
 
 **First 20 Links:**
 ${links.slice(0, 20).join('\n')}
@@ -89,17 +111,28 @@ ${links.slice(0, 20).join('\n')}
 **Content Preview:**
 ${mainContent || 'No main content found'}
 
+**CRITICAL Image Requirements:**
+- We NEED pages with multiple images for style analysis
+- Blog archives with featured images are EXCELLENT
+- Individual content pages MUST have at least 3-4 images
+- Pages with NO images should be avoided unless it's the homepage
+- Prioritize pages with diverse image types (photos, illustrations, graphics)
+
 **Important Rules:**
-- Homepage is GOOD for analysis (even if it has many links)
-- Individual content pages are GOOD for analysis
-- Navigational/list/category pages are BAD - we need to browse deeper
-- If it's navigational, suggest 2-3 specific links that likely lead to individual content
+- Homepage is GOOD (overall style reference)
+- Blog archives with featured images are EXCELLENT (featured image patterns)
+- Individual content with 3+ images is EXCELLENT (detailed image analysis)
+- Individual content with 0-2 images is OK but not ideal
+- Generic navigational pages are BAD - browse deeper
+- If navigational, suggest links to image-rich pages
 
 Respond in JSON format:
 {
-  "type": "individual_content" | "navigational" | "homepage",
+  "type": "individual_content" | "blog_archive" | "navigational" | "homepage",
   "confidence": 0.0-1.0,
   "reasoning": "brief explanation",
+  "imageCount": ${imageCount},
+  "hasFeaturedImages": ${hasFeaturedImages},
   "suggestedLinks": ["url1", "url2"] // Only if navigational
 }`;
 
@@ -215,17 +248,25 @@ function extractCandidateLinks(baseUrl: string, html: string, maxLinks: number =
 /**
  * Intelligently discover 2 additional individual content pages by browsing autonomously
  * (3 pages total including the base URL)
+ *
+ * PRIORITY STRATEGY:
+ * 1. Homepage - overall style reference
+ * 2. Blog archive - featured image patterns (if available)
+ * 3. Image-rich individual pages - detailed image analysis (prefer 3+ images)
  */
 export async function discoverPages(baseUrl: string, initialHtml: string): Promise<string[]> {
-  console.log('[Discovery] Starting intelligent page discovery...');
+  console.log('[Discovery] Starting intelligent page discovery with image focus...');
 
-  const MAX_ATTEMPTS = 15; // Allow more attempts to find 3 total pages
+  const MAX_ATTEMPTS = 20; // Increased to find image-rich pages
   const TARGET_ADDITIONAL_PAGES = 2; // 2 additional pages + base URL = 3 total
-  const goodPages: string[] = [];
+  const MIN_IMAGES_PREFERRED = 3; // Prefer pages with 3+ images
+
+  const goodPages: Array<{ url: string; type: string; imageCount: number }> = [];
   const visited = new Set<string>();
   const toVisit: string[] = [baseUrl];
 
   let attempts = 0;
+  let hasBlogArchive = false;
 
   while (goodPages.length < TARGET_ADDITIONAL_PAGES + 1 && toVisit.length > 0 && attempts < MAX_ATTEMPTS) {
     attempts++;
@@ -249,20 +290,46 @@ export async function discoverPages(baseUrl: string, initialHtml: string): Promi
 
       // Classify the page
       const classification = await classifyPage(currentUrl, html);
+      const imageCount = classification.imageCount || 0;
 
       // Check if this is a good page
-      if (classification.type === 'individual_content' || classification.type === 'homepage') {
-        if (classification.confidence >= 0.6) {
-          console.log(`[Discovery] ✓ Found good page: ${currentUrl} (${classification.type})`);
-          goodPages.push(currentUrl);
+      const isGoodPage =
+        classification.type === 'homepage' ||
+        classification.type === 'blog_archive' ||
+        classification.type === 'individual_content';
 
-          // If we still need more pages, add some candidates
-          if (goodPages.length < TARGET_ADDITIONAL_PAGES + 1) {
-            const candidates = extractCandidateLinks(currentUrl, html, 5);
-            candidates.forEach(url => {
-              if (!visited.has(url)) toVisit.push(url);
-            });
+      if (isGoodPage && classification.confidence >= 0.6) {
+        // Special handling for blog archives (great for featured images)
+        if (classification.type === 'blog_archive') {
+          console.log(`[Discovery] ✓ Found blog archive: ${currentUrl} (${imageCount} images, featured: ${classification.hasFeaturedImages})`);
+          goodPages.push({ url: currentUrl, type: 'blog_archive', imageCount });
+          hasBlogArchive = true;
+        }
+        // Homepage always good
+        else if (classification.type === 'homepage') {
+          console.log(`[Discovery] ✓ Found homepage: ${currentUrl} (${imageCount} images)`);
+          goodPages.push({ url: currentUrl, type: 'homepage', imageCount });
+        }
+        // Individual content - prefer pages with images
+        else if (classification.type === 'individual_content') {
+          if (imageCount >= MIN_IMAGES_PREFERRED) {
+            console.log(`[Discovery] ✓ Found image-rich page: ${currentUrl} (${imageCount} images)`);
+            goodPages.push({ url: currentUrl, type: 'individual_content', imageCount });
+          } else if (imageCount > 0) {
+            console.log(`[Discovery] ~ Found page with some images: ${currentUrl} (${imageCount} images)`);
+            goodPages.push({ url: currentUrl, type: 'individual_content', imageCount });
+          } else {
+            console.log(`[Discovery] ⚠ Skipping page with no images: ${currentUrl}`);
+            // Don't add to goodPages, but extract links to find better pages
           }
+        }
+
+        // If we still need more pages, add candidates
+        if (goodPages.length < TARGET_ADDITIONAL_PAGES + 1) {
+          const candidates = extractCandidateLinks(currentUrl, html, 5);
+          candidates.forEach(url => {
+            if (!visited.has(url)) toVisit.push(url);
+          });
         }
       } else if (classification.type === 'navigational') {
         console.log(`[Discovery] → Navigational page detected, browsing deeper...`);
@@ -296,11 +363,38 @@ export async function discoverPages(baseUrl: string, initialHtml: string): Promi
 
   console.log(`[Discovery] Complete! Found ${goodPages.length} suitable pages after ${attempts} attempts`);
 
+  // Log page breakdown
+  const homepage = goodPages.find(p => p.type === 'homepage');
+  const blogArchive = goodPages.find(p => p.type === 'blog_archive');
+  const individualPages = goodPages.filter(p => p.type === 'individual_content');
+
+  console.log('[Discovery] Page breakdown:');
+  if (homepage) console.log(`  - Homepage: ${homepage.url} (${homepage.imageCount} images)`);
+  if (blogArchive) console.log(`  - Blog archive: ${blogArchive.url} (${blogArchive.imageCount} images)`);
+  individualPages.forEach((page, i) => {
+    console.log(`  - Individual page ${i + 1}: ${page.url} (${page.imageCount} images)`);
+  });
+
+  // Sort pages by priority: homepage first, then blog archive, then by image count
+  const sortedPages = goodPages.sort((a, b) => {
+    if (a.type === 'homepage') return -1;
+    if (b.type === 'homepage') return 1;
+    if (a.type === 'blog_archive') return -1;
+    if (b.type === 'blog_archive') return 1;
+    return b.imageCount - a.imageCount; // More images = higher priority
+  });
+
   // Return up to 2 additional pages (excluding the base URL if it's in the list)
   // This gives us 3 total pages: base URL + 2 additional
-  const additionalPages = goodPages.filter(url => url !== baseUrl).slice(0, TARGET_ADDITIONAL_PAGES);
+  const additionalPages = sortedPages
+    .filter(page => page.url !== baseUrl)
+    .slice(0, TARGET_ADDITIONAL_PAGES)
+    .map(page => page.url);
+
   console.log('[Discovery] Additional pages:', additionalPages);
   console.log(`[Discovery] Total pages for analysis: ${1 + additionalPages.length} (base + ${additionalPages.length} additional)`);
+  const totalImages = sortedPages.slice(0, TARGET_ADDITIONAL_PAGES + 1).reduce((sum, p) => sum + p.imageCount, 0);
+  console.log(`[Discovery] Total images across all pages: ~${totalImages}`);
 
   return additionalPages;
 }

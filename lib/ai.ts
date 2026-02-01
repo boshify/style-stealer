@@ -278,10 +278,61 @@ function formatTokensForPrompt(tokens: DesignTokens): string {
     if (imagery.analysis.subjects.length > 0) {
       prompt += `- Subject Matter: ${imagery.analysis.subjects.join(', ')}\n`;
     }
+
+    // Featured image style (CRITICAL - emphasize in output)
+    if (imagery.analysis.featuredImageStyle) {
+      prompt += `\n**FEATURED IMAGE STYLE (Critical for Blog/Product Cards)**:\n`;
+      prompt += `${imagery.analysis.featuredImageStyle.description}\n`;
+      if (imagery.analysis.featuredImageStyle.aspectRatio) {
+        prompt += `- Aspect Ratio: ${imagery.analysis.featuredImageStyle.aspectRatio}\n`;
+      }
+      if (imagery.analysis.featuredImageStyle.treatment) {
+        prompt += `- Treatment: ${imagery.analysis.featuredImageStyle.treatment}\n`;
+      }
+      if (imagery.analysis.featuredImageStyle.consistency) {
+        prompt += `- Consistency: ${imagery.analysis.featuredImageStyle.consistency}\n`;
+      }
+    }
+
+    // Image types breakdown (detailed descriptions)
+    if (imagery.analysis.imageTypes && imagery.analysis.imageTypes.length > 0) {
+      prompt += `\n**Image Types Found**:\n`;
+      imagery.analysis.imageTypes.forEach((imageType) => {
+        prompt += `\n*${imageType.type}* (${imageType.count} found):\n`;
+        prompt += `${imageType.description}\n`;
+        if (imageType.stylingApproach) {
+          prompt += `Styling Approach: ${imageType.stylingApproach}\n`;
+        }
+      });
+    }
+
+    // Technical details
+    if (imagery.analysis.technicalDetails) {
+      prompt += `\n**Technical Image Details**:\n`;
+      if (imagery.analysis.technicalDetails.compositionStyle) {
+        prompt += `- Composition: ${imagery.analysis.technicalDetails.compositionStyle}\n`;
+      }
+      if (imagery.analysis.technicalDetails.lightingStyle) {
+        prompt += `- Lighting: ${imagery.analysis.technicalDetails.lightingStyle}\n`;
+      }
+      if (imagery.analysis.technicalDetails.renderingStyle) {
+        prompt += `- Rendering: ${imagery.analysis.technicalDetails.renderingStyle}\n`;
+      }
+      if (imagery.analysis.technicalDetails.colorGrading) {
+        prompt += `- Color Grading: ${imagery.analysis.technicalDetails.colorGrading}\n`;
+      }
+    }
   }
 
   prompt += `\n---\n\n`;
-  prompt += `Using the above design tokens, create a professional, comprehensive style guide in Markdown format. Follow all format requirements and include all required sections. Be descriptive and insightful about the design choices and patterns.`;
+  prompt += `Using the above design tokens, create a professional, comprehensive style guide in Markdown format. Follow all format requirements and include all required sections.
+
+**CRITICAL**: The "Imagery & Icons" section MUST include:
+1. **Featured Images section** (if featuredImageStyle data available) - describe how they style blog/product thumbnails with specific details about aspect ratio, borders, shadows, overlays, etc.
+2. **Image Type sections** for each unique type found (Photos, Illustrations, Graphics, Charts, etc.) with vivid descriptions
+3. All the detailed styling information provided in the AI-Powered Image Analysis above
+
+Be extremely descriptive and insightful about the design choices and patterns. The imagery section should be detailed enough for designers to recreate the visual style.`;
 
   return prompt;
 }
@@ -301,8 +352,9 @@ export async function analyzeImages(
 
   console.log('[AI:Images] Analyzing', imageUrls.length, 'images...');
 
-  // Select up to 6 representative images (increased for more diverse analysis)
-  const selectedImages = selectRepresentativeImages(imageUrls, 6);
+  // Select up to 12 representative images for comprehensive style analysis
+  // This allows us to capture featured images, blog post images, graphics, charts, etc.
+  const selectedImages = selectRepresentativeImages(imageUrls, 12);
 
   if (selectedImages.length === 0) {
     console.log('[AI:Images] No valid images selected');
@@ -404,64 +456,122 @@ export async function analyzeImages(
               ...messageContent,
               {
                 type: 'text',
-                text: `Analyze these images from a website and provide an extremely detailed, vivid analysis of the imagery. Your descriptions should be so detailed that an AI image generator could recreate similar images.
+                text: `Analyze these images from a website and provide an EXTREMELY detailed, vivid analysis of ALL imagery. Your descriptions must be so detailed that an AI image generator could recreate similar images perfectly.
 
 **CRITICAL**: When identifying logos, use the exact "Image X URL" labels above to return the correct URL in your JSON response.
 
-For EACH image, identify its type and provide vivid descriptions:
+**PRIMARY FOCUS - Featured Images Analysis:**
+Featured images are the preview/thumbnail images used in blog posts, product listings, and cards. They are CRITICAL to understand. For featured images, describe:
+- Aspect ratio (16:9, 4:3, 1:1, etc.) and typical dimensions
+- Composition style (centered subject, rule of thirds, negative space usage)
+- Background treatment (solid color, gradient, photo, blur, pattern)
+- Border/frame styling (rounded corners, shadows, overlays, none)
+- Text overlay patterns (if any - placement, typography, color, effects)
+- Hover effects or visual treatments (shadows, scale, brightness changes)
+- Consistency across multiple featured images
+- Color grading or filters applied
+- Subject positioning and cropping patterns
 
-**Image Types to Identify:**
-- **Logos** (company/brand logos - ANY SIZE, location matters more than size)
-- **Logo Variants** (dark logo, light logo, icon-only logo, mobile logo, favicon)
-- Featured Images / Hero Images (large, prominent, attention-grabbing)
-- Photos (photography of people, products, places)
-- Illustrations (drawn, vector, artistic)
-- Screenshots (interface captures, app views)
-- Charts / Graphs (data visualizations)
-- Tables (structured data displays)
-- Icons (small graphical elements, NOT logos)
-- Diagrams (technical drawings, flowcharts)
+**Image Types to Identify and Describe in Detail:**
 
-**CRITICAL FOR LOGOS:**
-- Logos are typically in the header, navigation, or footer
-- Look for images at typical logo positions (top-left, center-top, etc.)
-- Logos can be ANY size - small favicons or large hero logos
-- Check file names/URLs for hints: "logo", "brand", "icon", "favicon"
-- A logo is THE brand identifier, not just any icon
+1. **FEATURED IMAGES / THUMBNAILS** (blog previews, product cards, post thumbnails)
+   - These are the MOST IMPORTANT - describe their styling pattern in extreme detail
+   - Note if they're photos, illustrations, or graphics
+   - Describe the visual treatment that makes them cohesive
 
-For EACH identified image type, describe in vivid detail:
-- Composition (layout, framing, positioning, rule of thirds usage)
-- Subject matter (what exactly is depicted, positioning, scale, interactions)
-- Color palette (specific colors, hex codes if discernible, color relationships)
-- Lighting (direction, quality, hard/soft, mood, shadows, highlights)
-- Style (photorealistic, flat design, isometric, hand-drawn, 3D, etc.)
-- Texture and detail level (smooth, rough, detailed, minimalist)
-- Typography in images (if any - fonts, sizes, weights, colors)
-- Background treatment (solid, gradient, pattern, photographic, blurred)
-- Visual effects (shadows, glows, borders, overlays, filters)
-- Aspect ratio and dimensions (landscape, portrait, square, approximate size)
+2. **HERO IMAGES** (large banner/header images)
+   - Full-width placement, visual impact, overlay usage
+   - Text integration, call-to-action placement
 
-Return a JSON object with these fields:
-- logos: array of logo objects, each with {url: string, type: "regular" | "dark" | "light" | "icon" | "favicon" | "mobile" | "other", description?: string}
-  * CRITICAL: Include the ACTUAL image URL from the images you analyzed
-  * type should reflect the logo variant (regular, dark, light, icon, etc.)
-  * description should explain the variant (e.g., "Dark logo for light backgrounds")
-- imageTypes: array of objects, each with {type: string, count: number, description: string} where description is EXTREMELY detailed
-- style: overall visual style across all images
-- tone: emotional tone
-- dominantColors: array of 3-5 dominant colors with specific names (e.g., "Deep Navy Blue", "Warm Coral Orange")
-- subjects: array of specific subjects depicted
-- quality: perceived quality and production value
-- consistency: how consistent the imagery is across all images
-- technicalDetails: object with {compositionStyle, lightingStyle, renderingStyle}
+3. **LOGOS & BRANDING**
+   - Company/brand logos at ANY size
+   - Logo variants (dark, light, icon-only, mobile, favicon)
+   - Placement context (header, footer, navigation)
 
-**IMPORTANT FOR LOGOS:**
-- You MUST return the actual image URLs for logos (not just note their presence)
-- Match each logo URL from the provided images
-- Identify the logo type based on appearance and filename
-- If no logos found, return empty array for logos field
+4. **PHOTOGRAPHY** (people, products, places, lifestyle)
+   - Shooting style (studio, environmental, candid, staged)
+   - Lighting approach (natural, studio, dramatic, soft)
+   - Color grading (warm, cool, desaturated, vibrant)
+   - Composition patterns
 
-Make descriptions vivid and specific - suitable for AI image generation prompts. Include details about shadows, highlights, textures, depth, perspective, and any unique visual treatments.
+5. **ILLUSTRATIONS** (vector art, drawings, artistic elements)
+   - Style (flat, isometric, hand-drawn, geometric, organic)
+   - Color palette and shading approach
+   - Line weight and detail level
+   - Character design or iconographic approach
+
+6. **GRAPHICS & DESIGN ELEMENTS** (abstract shapes, patterns, decorative)
+   - Purpose (background, accent, separator, decoration)
+   - Style (geometric, organic, minimalist, ornate)
+   - Color usage and visual weight
+
+7. **CHARTS & DATA VISUALIZATIONS** (graphs, infographics, statistics)
+   - Chart types used (bar, line, pie, custom)
+   - Color coding and labeling approach
+   - Visual style (minimal, detailed, 3D, flat)
+
+8. **SCREENSHOTS** (interface captures, product demos)
+   - Context and framing
+   - Annotation or highlighting style
+   - Background and presentation
+
+9. **ICONS** (UI elements, decorative icons - NOT logos)
+   - Icon style (line, filled, duotone, 3D)
+   - Size and visual weight
+   - Usage context
+
+**For EVERY Image Type Found, Provide:**
+- **Composition**: Layout, framing, positioning, rule of thirds, symmetry, balance
+- **Subject Matter**: What's depicted, positioning, scale, relationships, interactions
+- **Color Palette**: Specific colors (with hex if visible), color relationships, temperature, saturation
+- **Lighting**: Direction, quality (hard/soft), mood, shadows, highlights, contrast
+- **Style**: Photorealistic, flat design, isometric, hand-drawn, 3D, minimal, detailed, etc.
+- **Texture & Detail**: Smooth, rough, grainy, detailed, minimalist, glossy, matte
+- **Typography** (if present): Fonts, sizes, weights, colors, effects, placement
+- **Background**: Solid color, gradient, pattern, photographic, blurred, transparent
+- **Visual Effects**: Shadows (drop, inner), glows, borders, overlays, filters, blend modes
+- **Dimensions**: Aspect ratio, orientation (landscape/portrait/square), approximate size
+- **Unique Treatments**: Masks, clipping, distortion, animation potential, interactive states
+
+**Return JSON with these fields:**
+{
+  "logos": [{url, type, description}], // MUST include actual URLs from analyzed images
+  "featuredImageStyle": {
+    "description": "EXTREMELY detailed description of featured image styling",
+    "aspectRatio": "common ratio used",
+    "treatment": "visual styling approach",
+    "consistency": "how uniform the style is"
+  },
+  "imageTypes": [
+    {
+      "type": "Featured Images" | "Hero Images" | "Photography" | "Illustrations" | "Graphics" | "Charts" | "Screenshots" | "Icons",
+      "count": number,
+      "description": "VIVID, EXTREMELY DETAILED description - multiple paragraphs if needed",
+      "stylingApproach": "how this image type is consistently styled",
+      "examples": ["specific examples from the analyzed images"]
+    }
+  ],
+  "style": "overall visual style across all images",
+  "tone": "emotional tone and mood",
+  "dominantColors": ["Specific Color Name #hex", ...],
+  "subjects": ["specific subjects depicted"],
+  "quality": "perceived quality and production value",
+  "consistency": "how consistent the imagery is - patterns and variations",
+  "technicalDetails": {
+    "compositionStyle": "detailed composition patterns",
+    "lightingStyle": "lighting approach across images",
+    "renderingStyle": "rendering and finishing techniques",
+    "colorGrading": "color treatment and grading approach"
+  }
+}
+
+**CRITICAL REQUIREMENTS:**
+- Descriptions must be LONG and DETAILED - err on the side of too much detail
+- Focus heavily on FEATURED IMAGES if present - they define the visual brand
+- Describe the STYLING APPROACH for each image type, not just individual images
+- Include enough detail for AI image generation
+- Note consistent patterns and variations
+- Describe visual effects, treatments, and techniques used
 
 Only return the JSON object, no other text.`,
               },
@@ -483,64 +593,122 @@ Only return the JSON object, no other text.`,
                 ...messageContent,
                 {
                   type: 'text',
-                  text: `Analyze these images from a website and provide an extremely detailed, vivid analysis of the imagery. Your descriptions should be so detailed that an AI image generator could recreate similar images.
+                  text: `Analyze these images from a website and provide an EXTREMELY detailed, vivid analysis of ALL imagery. Your descriptions must be so detailed that an AI image generator could recreate similar images perfectly.
 
 **CRITICAL**: When identifying logos, use the exact "Image X URL" labels above to return the correct URL in your JSON response.
 
-For EACH image, identify its type and provide vivid descriptions:
+**PRIMARY FOCUS - Featured Images Analysis:**
+Featured images are the preview/thumbnail images used in blog posts, product listings, and cards. They are CRITICAL to understand. For featured images, describe:
+- Aspect ratio (16:9, 4:3, 1:1, etc.) and typical dimensions
+- Composition style (centered subject, rule of thirds, negative space usage)
+- Background treatment (solid color, gradient, photo, blur, pattern)
+- Border/frame styling (rounded corners, shadows, overlays, none)
+- Text overlay patterns (if any - placement, typography, color, effects)
+- Hover effects or visual treatments (shadows, scale, brightness changes)
+- Consistency across multiple featured images
+- Color grading or filters applied
+- Subject positioning and cropping patterns
 
-**Image Types to Identify:**
-- **Logos** (company/brand logos - ANY SIZE, location matters more than size)
-- **Logo Variants** (dark logo, light logo, icon-only logo, mobile logo, favicon)
-- Featured Images / Hero Images (large, prominent, attention-grabbing)
-- Photos (photography of people, products, places)
-- Illustrations (drawn, vector, artistic)
-- Screenshots (interface captures, app views)
-- Charts / Graphs (data visualizations)
-- Tables (structured data displays)
-- Icons (small graphical elements, NOT logos)
-- Diagrams (technical drawings, flowcharts)
+**Image Types to Identify and Describe in Detail:**
 
-**CRITICAL FOR LOGOS:**
-- Logos are typically in the header, navigation, or footer
-- Look for images at typical logo positions (top-left, center-top, etc.)
-- Logos can be ANY size - small favicons or large hero logos
-- Check file names/URLs for hints: "logo", "brand", "icon", "favicon"
-- A logo is THE brand identifier, not just any icon
+1. **FEATURED IMAGES / THUMBNAILS** (blog previews, product cards, post thumbnails)
+   - These are the MOST IMPORTANT - describe their styling pattern in extreme detail
+   - Note if they're photos, illustrations, or graphics
+   - Describe the visual treatment that makes them cohesive
 
-For EACH identified image type, describe in vivid detail:
-- Composition (layout, framing, positioning, rule of thirds usage)
-- Subject matter (what exactly is depicted, positioning, scale, interactions)
-- Color palette (specific colors, hex codes if discernible, color relationships)
-- Lighting (direction, quality, hard/soft, mood, shadows, highlights)
-- Style (photorealistic, flat design, isometric, hand-drawn, 3D, etc.)
-- Texture and detail level (smooth, rough, detailed, minimalist)
-- Typography in images (if any - fonts, sizes, weights, colors)
-- Background treatment (solid, gradient, pattern, photographic, blurred)
-- Visual effects (shadows, glows, borders, overlays, filters)
-- Aspect ratio and dimensions (landscape, portrait, square, approximate size)
+2. **HERO IMAGES** (large banner/header images)
+   - Full-width placement, visual impact, overlay usage
+   - Text integration, call-to-action placement
 
-Return a JSON object with these fields:
-- logos: array of logo objects, each with {url: string, type: "regular" | "dark" | "light" | "icon" | "favicon" | "mobile" | "other", description?: string}
-  * CRITICAL: Include the ACTUAL image URL from the images you analyzed
-  * type should reflect the logo variant (regular, dark, light, icon, etc.)
-  * description should explain the variant (e.g., "Dark logo for light backgrounds")
-- imageTypes: array of objects, each with {type: string, count: number, description: string} where description is EXTREMELY detailed
-- style: overall visual style across all images
-- tone: emotional tone
-- dominantColors: array of 3-5 dominant colors with specific names (e.g., "Deep Navy Blue", "Warm Coral Orange")
-- subjects: array of specific subjects depicted
-- quality: perceived quality and production value
-- consistency: how consistent the imagery is across all images
-- technicalDetails: object with {compositionStyle, lightingStyle, renderingStyle}
+3. **LOGOS & BRANDING**
+   - Company/brand logos at ANY size
+   - Logo variants (dark, light, icon-only, mobile, favicon)
+   - Placement context (header, footer, navigation)
 
-**IMPORTANT FOR LOGOS:**
-- You MUST return the actual image URLs for logos (not just note their presence)
-- Match each logo URL from the provided images
-- Identify the logo type based on appearance and filename
-- If no logos found, return empty array for logos field
+4. **PHOTOGRAPHY** (people, products, places, lifestyle)
+   - Shooting style (studio, environmental, candid, staged)
+   - Lighting approach (natural, studio, dramatic, soft)
+   - Color grading (warm, cool, desaturated, vibrant)
+   - Composition patterns
 
-Make descriptions vivid and specific - suitable for AI image generation prompts. Include details about shadows, highlights, textures, depth, perspective, and any unique visual treatments.
+5. **ILLUSTRATIONS** (vector art, drawings, artistic elements)
+   - Style (flat, isometric, hand-drawn, geometric, organic)
+   - Color palette and shading approach
+   - Line weight and detail level
+   - Character design or iconographic approach
+
+6. **GRAPHICS & DESIGN ELEMENTS** (abstract shapes, patterns, decorative)
+   - Purpose (background, accent, separator, decoration)
+   - Style (geometric, organic, minimalist, ornate)
+   - Color usage and visual weight
+
+7. **CHARTS & DATA VISUALIZATIONS** (graphs, infographics, statistics)
+   - Chart types used (bar, line, pie, custom)
+   - Color coding and labeling approach
+   - Visual style (minimal, detailed, 3D, flat)
+
+8. **SCREENSHOTS** (interface captures, product demos)
+   - Context and framing
+   - Annotation or highlighting style
+   - Background and presentation
+
+9. **ICONS** (UI elements, decorative icons - NOT logos)
+   - Icon style (line, filled, duotone, 3D)
+   - Size and visual weight
+   - Usage context
+
+**For EVERY Image Type Found, Provide:**
+- **Composition**: Layout, framing, positioning, rule of thirds, symmetry, balance
+- **Subject Matter**: What's depicted, positioning, scale, relationships, interactions
+- **Color Palette**: Specific colors (with hex if visible), color relationships, temperature, saturation
+- **Lighting**: Direction, quality (hard/soft), mood, shadows, highlights, contrast
+- **Style**: Photorealistic, flat design, isometric, hand-drawn, 3D, minimal, detailed, etc.
+- **Texture & Detail**: Smooth, rough, grainy, detailed, minimalist, glossy, matte
+- **Typography** (if present): Fonts, sizes, weights, colors, effects, placement
+- **Background**: Solid color, gradient, pattern, photographic, blurred, transparent
+- **Visual Effects**: Shadows (drop, inner), glows, borders, overlays, filters, blend modes
+- **Dimensions**: Aspect ratio, orientation (landscape/portrait/square), approximate size
+- **Unique Treatments**: Masks, clipping, distortion, animation potential, interactive states
+
+**Return JSON with these fields:**
+{
+  "logos": [{url, type, description}], // MUST include actual URLs from analyzed images
+  "featuredImageStyle": {
+    "description": "EXTREMELY detailed description of featured image styling",
+    "aspectRatio": "common ratio used",
+    "treatment": "visual styling approach",
+    "consistency": "how uniform the style is"
+  },
+  "imageTypes": [
+    {
+      "type": "Featured Images" | "Hero Images" | "Photography" | "Illustrations" | "Graphics" | "Charts" | "Screenshots" | "Icons",
+      "count": number,
+      "description": "VIVID, EXTREMELY DETAILED description - multiple paragraphs if needed",
+      "stylingApproach": "how this image type is consistently styled",
+      "examples": ["specific examples from the analyzed images"]
+    }
+  ],
+  "style": "overall visual style across all images",
+  "tone": "emotional tone and mood",
+  "dominantColors": ["Specific Color Name #hex", ...],
+  "subjects": ["specific subjects depicted"],
+  "quality": "perceived quality and production value",
+  "consistency": "how consistent the imagery is - patterns and variations",
+  "technicalDetails": {
+    "compositionStyle": "detailed composition patterns",
+    "lightingStyle": "lighting approach across images",
+    "renderingStyle": "rendering and finishing techniques",
+    "colorGrading": "color treatment and grading approach"
+  }
+}
+
+**CRITICAL REQUIREMENTS:**
+- Descriptions must be LONG and DETAILED - err on the side of too much detail
+- Focus heavily on FEATURED IMAGES if present - they define the visual brand
+- Describe the STYLING APPROACH for each image type, not just individual images
+- Include enough detail for AI image generation
+- Note consistent patterns and variations
+- Describe visual effects, treatments, and techniques used
 
 Only return the JSON object, no other text.`,
                 },
