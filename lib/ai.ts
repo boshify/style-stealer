@@ -352,9 +352,9 @@ export async function analyzeImages(
 
   console.log('[AI:Images] Analyzing', imageUrls.length, 'images...');
 
-  // Select up to 12 representative images for comprehensive style analysis
-  // This allows us to capture featured images, blog post images, graphics, charts, etc.
-  const selectedImages = selectRepresentativeImages(imageUrls, 12);
+  // Select up to 8 representative images for style analysis
+  // Reduced from 12 to limit memory usage on Railway (each image can be up to 2MB base64)
+  const selectedImages = selectRepresentativeImages(imageUrls, 8);
 
   if (selectedImages.length === 0) {
     console.log('[AI:Images] No valid images selected');
@@ -384,9 +384,10 @@ export async function analyzeImages(
 
           const buffer = await response.arrayBuffer();
 
-          // Skip images that are too large (> 5MB) or too small (< 1KB) for vision API
+          // Skip images that are too large (> 2MB) or too small (< 1KB) for vision API
+          // Reduced from 5MB to limit memory usage on Railway
           const sizeInBytes = buffer.byteLength;
-          if (sizeInBytes > 5 * 1024 * 1024) {
+          if (sizeInBytes > 2 * 1024 * 1024) {
             console.log('[AI:Images] Skipping image (too large):', absoluteUrl, `${(sizeInBytes / 1024 / 1024).toFixed(2)}MB`);
             return null;
           }

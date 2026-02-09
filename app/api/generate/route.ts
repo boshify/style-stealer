@@ -284,21 +284,17 @@ export async function POST(request: NextRequest) {
     const additionalPages = await discoverPages(actualUrl, primaryScrapedData.html);
     console.log(`[API] ✓ Found ${additionalPages.length} additional pages:`, additionalPages);
 
-    // Step 3: Analyze all pages concurrently (primary + additional)
+    // Step 3: Analyze pages sequentially (reduces peak memory usage from concurrent image processing)
     const allPages = [actualUrl, ...additionalPages];
-    console.log(`[API] Step 3: Analyzing ${allPages.length} pages concurrently...`);
+    console.log(`[API] Step 3: Analyzing ${allPages.length} pages sequentially...`);
 
-    const pageReports = await Promise.all(
-      allPages.map((pageUrl, index) =>
-        analyzeSinglePage(pageUrl, index + 1, allPages.length)
-      )
-    );
-
-    // Filter out any failed analyses
-    const successfulReports = pageReports.filter((report) => report !== null) as Array<{
-      url: string;
-      markdown: string;
-    }>;
+    const successfulReports: Array<{ url: string; markdown: string }> = [];
+    for (let i = 0; i < allPages.length; i++) {
+      const report = await analyzeSinglePage(allPages[i], i + 1, allPages.length);
+      if (report) {
+        successfulReports.push(report);
+      }
+    }
 
     console.log(`[API] ✓ Successfully analyzed ${successfulReports.length}/${allPages.length} pages`);
 
@@ -620,17 +616,14 @@ async function processAsync(
     const additionalPages = await discoverPages(actualUrl, primaryScrapedData.html);
     const allPages = [actualUrl, ...additionalPages];
 
-    // Step 3: Analyze all pages concurrently
-    const pageReports = await Promise.all(
-      allPages.map((pageUrl, index) =>
-        analyzeSinglePage(pageUrl, index + 1, allPages.length)
-      )
-    );
-
-    const successfulReports = pageReports.filter((report) => report !== null) as Array<{
-      url: string;
-      markdown: string;
-    }>;
+    // Step 3: Analyze pages sequentially (reduces peak memory from concurrent image processing)
+    const successfulReports: Array<{ url: string; markdown: string }> = [];
+    for (let i = 0; i < allPages.length; i++) {
+      const report = await analyzeSinglePage(allPages[i], i + 1, allPages.length);
+      if (report) {
+        successfulReports.push(report);
+      }
+    }
 
     if (successfulReports.length === 0) {
       throw new Error('Failed to analyze any pages');
