@@ -7,7 +7,7 @@ import * as cheerio from 'cheerio';
 import Anthropic from '@anthropic-ai/sdk';
 import { scrapeWebsite } from './scraper';
 
-const MODEL = 'claude-3-5-haiku-20241022';
+const MODEL = 'claude-haiku-4-5-20251001';
 
 /**
  * Get Anthropic client (lazy initialization to ensure API key is loaded)

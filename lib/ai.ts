@@ -12,8 +12,8 @@ const anthropic = new Anthropic({
 });
 
 // Latest Claude models - https://platform.claude.com/docs/en/about-claude/models/overview
-const MODEL = 'claude-3-5-haiku-20241022'; // Cost-efficient for text
-const VISION_MODEL = 'claude-3-5-sonnet-20241022'; // Sonnet for vision (best quality)
+const MODEL = 'claude-haiku-4-5-20251001'; // Cost-efficient for text
+const VISION_MODEL = 'claude-sonnet-4-6'; // Sonnet for vision (best quality)
 const MAX_TOKENS = 4096;
 
 /**
